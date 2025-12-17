@@ -210,3 +210,4 @@ Biologicamente rappresenta quanti farmaci condividono un profilo di target simil
 Quando diciamo che un farmaco “modula il sistema biologico” intendiamo come e dove interviene nella rete molecolare cellulare cioè quali proteine (target) colpisce, in quali pathway si inserisce e con che intensità e specificità altera il flusso di segnali biologici. Il sistema biologico non è una catena lineare, ma una rete complessa di interazioni (proteine, pathway, feedback, cross-talk).
 --- 
 
+
