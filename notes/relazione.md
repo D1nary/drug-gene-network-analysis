@@ -209,5 +209,150 @@ Biologicamente rappresenta quanti farmaci condividono un profilo di target simil
 ---
 Quando diciamo che un farmaco “modula il sistema biologico” intendiamo come e dove interviene nella rete molecolare cellulare cioè quali proteine (target) colpisce, in quali pathway si inserisce e con che intensità e specificità altera il flusso di segnali biologici. Il sistema biologico non è una catena lineare, ma una rete complessa di interazioni (proteine, pathway, feedback, cross-talk).
 --- 
+### Density
 
+AGGIUNGI FORMULA DELLA DENSITÀ
+---
+DIFFERENZA TRA L'IDENTIFICAZIONE DELLE COMUNITÀ E IL CALCOLO DELLA DENSITÀ PER CIASCUNA COMUNITÀ
+La risposta breve è:
+
+> **perché Louvain ti dice _chi_ sta insieme, la density ti dice _quanto bene_ sta insieme.**
+
+Ora ti spiego bene il perché, passo per passo, senza scorciatoie.
+
+1. Cosa fa davvero Louvain (e cosa NON fa)
+
+Il **Louvain method**:
+
+- non cerca gruppi “molto densi” in senso assoluto 
+- cerca gruppi che hanno **più connessioni interne di quelle attese per caso**
+
+Formalmente, massimizza la **modularity**:
+
+Q = (edge interni osservati) − (edge interni attesi)
+
+👉 Quindi una comunità può essere:
+- poco densa,
+- ma comunque una comunità valida,
+- se è più connessa internamente che verso l’esterno.
+
+💡 Traduzione biologica:
+
+Louvain trova gruppi **relativamente simili**, non necessariamente **fortemente simili**.
+
+
+2. Due comunità possono essere entrambe “valide” ma molto diverse
+
+Immagina due comunità trovate da Louvain:
+
+**Comunità A**
+- 20 farmaci 
+- 150 archi interni 
+- density ≈ 0.79 
+
+👉 quasi tutti simili a quasi tutti
+
+**Comunità B**
+- 20 farmaci 
+- 25 archi interni 
+- density ≈ 0.13 
+
+👉 pochi legami, ma più interni che esterni
+
+⚠️ Louvain accetta entrambe come comunità 
+ma biologicamente **non raccontano la stessa storia**.
+
+Qui entra in gioco la density.
+
+
+3. A cosa serve davvero la density (risposta concettuale)
+
+La density risponde a una domanda diversa:
+
+> **Quanto è omogeneo il meccanismo biologico all’interno della comunità?**
+
+**Louvain**
+- “Questi farmaci stanno insieme?”
+- criterio relativo
+- separazione dal resto
+- struttura globale
+
+**Density**
+- “Quanto sono davvero simili?”
+- criterio assoluto
+- coesione interna
+- qualità biologica del cluster
+
+4. Perché questo è cruciale biologicamente (non solo tecnicamente)
+
+Nel tuo caso (farmaci ↔ target):
+
+**Caso 1 – Density alta**
+
+Farmaci:
+- colpiscono gli stessi target 
+- o la stessa famiglia proteica 
+
+Biologicamente:
+- stessa classe farmacologica 
+- effetti simili, tossicità simile 
+
+👉 Qui puoi parlare di **classe funzionale ben definita**
+
+**Caso 2 – Density bassa**
+
+Farmaci:
+- condividono solo alcuni target 
+- oppure convergono su uno stesso pathway 
+
+Biologicamente:
+- meccanismi diversi, stesso effetto finale 
+- possibili combinazioni terapeutiche 
+
+👉 Qui **NON** hai una classe omogenea, ma un **modulo funzionale**
+
+Senza la density, questi due casi sembrerebbero uguali, perché Louvain li etichetta entrambi come “comunità”.
+
+5. Il punto chiave (molto importante)
+
+Louvain **NON** garantisce che una comunità sia internamente compatta. 
+Garantisce solo che è **più compatta di quanto ci si aspetterebbe per caso**.
+
+La density serve a:
+- distinguere:
+  - comunità forti 
+  - comunità deboli 
+- evitare over-interpretazioni biologiche 
+- capire quanto fidarti del cluster
+---
+
+Mentre il Louvian method identifica comunità di farmaci strutturamente disinte, il calcolo della densità permette di valutare il grado di coerenza interna di ciascun modulo permettendo di distinguere vere classi farmacologiche omogenee da insiemi di farmaci che sono stati raggruppati nella stessa comunità non perchè siano tutti altamente simili tra loro, ma perchè condividono alcune funzioni biologiche o bersagli.
+
+---
+Esempio concettuale
+Immagina una comunità che include:
+- inibitori diretti di una chinasi A;
+- modulatori upstream che regolano l’attivazione di A;
+- farmaci che colpiscono un pathway parallelo ma convergente.
+Questi farmaci:
+- non condividono tutti gli stessi target,
+- ma agiscono sulla stessa funzione biologica finale (es. proliferazione cellulare).
+---
+
+Si osserva che comunità di piccole dimensioni mostrino spesso una density elevata, mentre comunità più grandi presentino density più basse, è un comportamento atteso sia dal punto di vista matematico dei network sia da quello biologico dei farmaci.
+
+Nei moduli piccoli, il numero di connessioni possibili è molto limitato: basta che pochi nodi siano tutti connessi tra loro perché la density risulti elevata, spesso prossima a 1. Questo riflette una similarità molto forte tra i farmaci del gruppo (ad esempio condivisione quasi completa dei target), ma tali valori sono poco robusti dal punto di vista statistico, perché fortemente influenzati dal basso numero di nodi.
+
+Al contrario, nelle comunità più grandi il numero di connessioni possibili cresce quadraticamente con la size. In questi casi è biologicamente e matematicamente improbabile che tutti i farmaci siano simili a tutti gli altri: la density tende quindi a diminuire, pur rimanendo sufficientemente alta da indicare una coerenza funzionale del modulo. Queste density moderate sono più affidabili e descrivono classi farmacologiche ampie, caratterizzate da meccanismi d’azione o pathway comuni ma con una naturale eterogeneità interna.
+
+Di seguito riportiamo in tabella solo i valori di densità per comunità con un numero maggiore o uguale a 15
+
+Community id	Size	Density
+Community_1	359	1.000
+Community_68	225	0.205
+Community_67	211	0.096
+Community_17	202	0.055
+Community_37	135	0.494
+Community_49	18	0.490
+Community_81	16	0.667
 

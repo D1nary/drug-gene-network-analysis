@@ -268,6 +268,7 @@ def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
                 "degree",
                 "weighted_degree",
                 "clustering_coefficient",
+                "density",
             ]
         )
 
@@ -277,13 +278,22 @@ def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
 
     rows = []
     for node, attrs in community_graph.nodes(data=True):
+        size = int(attrs.get("size", 0))
+        internal_edge_count = int(attrs.get("internal_edge_count", 0))
+        max_internal_edges = size * (size - 1) / 2 if size > 1 else 0
+        density = (
+            float(internal_edge_count) / max_internal_edges
+            if max_internal_edges > 0
+            else 0.0
+        )
         rows.append(
             {
                 "community_id": node,
-                "size": int(attrs.get("size", 0)),
+                "size": size,
                 "degree": int(degree.get(node, 0)),
                 "weighted_degree": float(weighted_degree.get(node, 0.0)),
                 "clustering_coefficient": float(clustering.get(node, 0.0)),
+                "density": density,
             }
         )
 

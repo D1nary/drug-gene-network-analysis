@@ -245,12 +245,14 @@ def build_community_network(
 
     membership: dict[str, str] = {}
     internal_weights: dict[str, float] = {}
+    internal_edges: dict[str, int] = {}
     community_labels: list[str] = []
 
     for idx, community in enumerate(communities):
         label = f"Community_{idx}"
         community_labels.append(label)
         internal_weights[label] = 0.0
+        internal_edges[label] = 0
         for node in community:
             membership[node] = label
 
@@ -262,6 +264,7 @@ def build_community_network(
 
         if comm_u == comm_v:
             internal_weights[comm_u] += edge_weight
+            internal_edges[comm_u] += 1
             continue
 
         key = tuple(sorted((comm_u, comm_v)))
@@ -274,6 +277,7 @@ def build_community_network(
             size=len(community),
             members=sorted(community),
             internal_weight=internal_weights.get(label, 0.0),
+            internal_edge_count=internal_edges.get(label, 0),
         )
 
     for (comm_u, comm_v), edge_weight in inter_weights.items():
@@ -294,5 +298,4 @@ def build_community_network(
 
     return community_graph, membership, communities
 #prova
-
 
