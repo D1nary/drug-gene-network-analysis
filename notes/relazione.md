@@ -1,7 +1,5 @@
 # Similarity network
-Costruito una similarity network drug-drug attraverso la cosine similarity con un threshold impostato a 0,3 quindi considerando farmaci che condividono lo stesso target in modo significativo
-
-È stata costruita una similarity nework attraverso la cosine similarity. Prima è stato utilizzato un threshold di 0.3 e successivamente uno di 0.4 e sono stati comparati i risultati (file filtering.json nel programma). 
+È stata costruita una similarity network drug-drug attraverso la cosine similarity  utilizzando prima un threshold di 0.3 e successivamente uno di 0.4. Sono stati successivamente comparati i risultati (file filtering.json nel programma).
 
 ## Threshold 0.3
 
