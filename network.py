@@ -5,7 +5,6 @@ the ChG-InterDecagon targets dataset."""
 from __future__ import annotations
 
 from itertools import combinations
-import numpy as np
 import pandas as pd
 import networkx as nx
 
@@ -87,11 +86,10 @@ def build_drug_similarity_network(
     df: pd.DataFrame,
     similarity_threshold: float = 0.30,
 ) -> nx.Graph:
-    """Create a weighted drug–drug similarity network using cosine similarity.
+    """Create a weighted drug–drug similarity network using Jaccard similarity.
 
-    Each drug is represented by a binary target-incidence vector whose length
-    equals the number of distinct targets in the dataset. Two drugs are linked
-    if the cosine similarity between their vectors is greater than or equal to
+    Each drug is represented by the set of its targets. Two drugs are linked if
+    the Jaccard similarity between their target sets is greater than or equal to
     ``similarity_threshold``. Drugs connected to only one target are removed
     before computing similarities so that low-information nodes do not skew the
     network.
@@ -101,13 +99,13 @@ def build_drug_similarity_network(
     df : pandas.DataFrame
         Preprocessed dataframe containing at least ``Drug`` and ``Gene`` columns.
     similarity_threshold : float, optional
-        Absolute similarity threshold applied to cosine similarities (default 0.30).
+        Absolute similarity threshold applied to Jaccard similarities (default 0.30).
 
     Returns
     -------
     nx.Graph
         Weighted drug–drug network where edges carry a ``weight`` attribute
-        equal to the cosine similarity of the incident nodes.
+        equal to the Jaccard similarity of the incident nodes.
     """
 
     required_cols = {"Drug", "Gene"}
@@ -124,11 +122,7 @@ def build_drug_similarity_network(
     original_drug_count = tmp["Drug"].nunique()
 
     # Map each drug to its unique targets and filter out mono-target drugs.
-    drug_targets = (
-        tmp.groupby("Drug")["Gene"]
-        .apply(lambda genes: sorted(set(genes)))
-        .to_dict()
-    )
+    drug_targets = tmp.groupby("Drug")["Gene"].apply(lambda genes: set(genes)).to_dict()
     drug_targets = {
         drug: targets for drug, targets in drug_targets.items() if len(targets) > 1
     }
@@ -149,36 +143,23 @@ def build_drug_similarity_network(
         )
         return G
 
-    unique_genes = sorted(tmp["Gene"].unique())
-    gene_index = {gene_id: idx for idx, gene_id in enumerate(unique_genes)}
-
-    drug_vectors = {}
     for drug_id, targets in drug_targets.items():
-        vector = np.zeros(len(unique_genes), dtype=float)
-        vector[[gene_index[target] for target in targets]] = 1.0
-        drug_vectors[drug_id] = vector
         G.add_node(
             f"Drug_{drug_id}",
             bipartite="drug",
             original_id=int(drug_id),
-            targets=targets,
+            targets=sorted(targets),
         )
 
-    # Precompute norms to avoid repeated work when evaluating cosine similarity.
-    norms = {
-        drug_id: np.linalg.norm(vec) for drug_id, vec in drug_vectors.items()
-    }
-
-    for drug_a, drug_b in combinations(drug_vectors.keys(), 2):
-        vec_a = drug_vectors[drug_a]
-        vec_b = drug_vectors[drug_b]
-        norm_a = norms[drug_a]
-        norm_b = norms[drug_b]
-
-        if norm_a == 0 or norm_b == 0:
+    for drug_a, drug_b in combinations(drug_targets.keys(), 2):
+        set_a = drug_targets[drug_a]
+        set_b = drug_targets[drug_b]
+        intersection = len(set_a & set_b)
+        union = len(set_a | set_b)
+        if union == 0:
             continue
 
-        similarity = float(vec_a.dot(vec_b) / (norm_a * norm_b))
+        similarity = float(intersection / union)
         if similarity >= similarity_threshold:
             G.add_edge(
                 f"Drug_{drug_a}",
@@ -196,6 +177,7 @@ def build_drug_similarity_network(
             "removed_drugs": removed_drugs,
             "potential_edges": potential_edges,
             "filtered_edges": filtered_edges,
+            "similarity_metric": "jaccard",
         }
     )
 
@@ -298,4 +280,3 @@ def build_community_network(
 
     return community_graph, membership, communities
 #prova
-

@@ -1,13 +1,13 @@
 {
-  "community_count": 109,
-  "inter_community_edge_count": 8,
-  "density": 0.0013591573224600749,
+  "community_count": 261,
+  "inter_community_edge_count": 1,
+  "density": 2.9472443265546713e-05,
   "weight_distribution": {
-    "min_weight": 0.9428090415820632,
-    "max_weight": 145.2591067042947,
-    "mean_weight": 37.3616644948973,
-    "median_weight": 26.97776072431269,
-    "std_weight": 44.44260001737483
+    "min_weight": 12.990404040404039,
+    "max_weight": 12.990404040404039,
+    "mean_weight": 12.990404040404039,
+    "median_weight": 12.990404040404039,
+    "std_weight": 0.0
   },
-  "component_count": 105
+  "component_count": 260
 }

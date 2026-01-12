@@ -1,0 +1,36 @@
+density:
+
+
+internal_edge
+-------------
+size*(size-1)
+-------------
+      2       
+      
+      
+2 * internal_edge
+-----------------
+  size*(size-1)
+  
+  
+density = 1 se internal_edge = 
+
+size*(size-1)
+-------------
+      2      
+      
+      
+Per calcolare density stiamo considerando internal_edge della comunity e la dimensione della comunity
+
+grafo: 
+- nodi: drug e target
+- archi: collegamenti drug - target
+grafo di similarità:
+- nodi: drug
+- archi: collegamenti drug - drug se simili
+
+Nel sottografo della community da 359 nodi, i farmaci non hanno tutti lo stesso set di target, ma molti condividono profili quasi identici: ci sono solo 120 combinazioni di target diverse per 359 farmaci, e il profilo più frequente (158 target) ricorre 125 volte. Con vettori così simili, la cosine supera facilmente la soglia 0.4 per quasi tutte le coppie, quindi il grafo tra questi farmaci diventa completo: ogni coppia è sopra soglia e produce un arco, da cui la densità 1. In altre parole, non è un errore di calcolo della densità, ma un effetto di profili molto ridondanti rispetto a una soglia relativamente permissiva.
+
+---
+
+

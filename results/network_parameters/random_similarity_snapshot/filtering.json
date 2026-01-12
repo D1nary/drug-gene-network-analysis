@@ -1,7 +1,7 @@
 {
   "similarity_threshold": 0.4,
   "nodes_removed": 333,
-  "edges_filtered": 959117,
+  "edges_filtered": 963962,
   "original_node_count": 1774,
   "retained_node_count": 1441,
   "potential_edges": 1037520

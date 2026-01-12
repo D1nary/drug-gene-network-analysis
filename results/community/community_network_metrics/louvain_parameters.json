@@ -1,9 +1,9 @@
 {
   "method": "louvain",
   "resolution": 1.0,
-  "modularity": 0.25754534108516103,
+  "modularity": 0.20377198633351143,
   "min_community_size": 1,
   "max_community_size": 359,
-  "mean_community_size": 13.220183486238533,
+  "mean_community_size": 5.521072796934866,
   "median_community_size": 2.0
 }

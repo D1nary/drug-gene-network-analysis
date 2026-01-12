@@ -189,7 +189,6 @@ def main() -> None:
             similarity_graph,
             max_nodes=500,
             title="Random drug similarity snapshot",
-            seed=snapshot_seed,
         )
         similarity_param_paths = save_network_parameters(
             similarity_snapshot,

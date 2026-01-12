@@ -1,12 +1,12 @@
 {
   "node_count": 500,
-  "edge_count": 11146,
-  "density": 0.08934669338677355,
-  "mean_weight": 0.9128857255040824,
-  "median_weight": 0.9448044068650603,
-  "min_weight": 0.40089186286863654,
-  "max_weight": 1.0000000000000002,
-  "std_weight": 0.11650280434110082,
-  "component_count": 83,
-  "largest_component_size": 309
+  "edge_count": 8529,
+  "density": 0.0683687374749499,
+  "mean_weight": 0.8959694468799828,
+  "median_weight": 0.9459459459459459,
+  "min_weight": 0.4,
+  "max_weight": 1.0,
+  "std_weight": 0.12594977683652803,
+  "component_count": 156,
+  "largest_component_size": 122
 }
