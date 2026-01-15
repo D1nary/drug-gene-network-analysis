@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import csv
 import json
+from collections import Counter
 from statistics import mean, median, pstdev
 
 import networkx as nx
@@ -274,12 +276,13 @@ def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
 
     degree = dict(community_graph.degree())
     weighted_degree = dict(community_graph.degree(weight="weight"))
-    clustering = nx.clustering(community_graph, weight="weight")
-
     rows = []
     for node, attrs in community_graph.nodes(data=True):
         size = int(attrs.get("size", 0))
         internal_edge_count = int(attrs.get("internal_edge_count", 0))
+        internal_clustering = float(
+            attrs.get("internal_clustering_coefficient", 0.0)
+        )
         max_internal_edges = size * (size - 1) / 2 if size > 1 else 0
         density = (
             float(internal_edge_count) / max_internal_edges
@@ -292,7 +295,7 @@ def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
                 "size": size,
                 "degree": int(degree.get(node, 0)),
                 "weighted_degree": float(weighted_degree.get(node, 0.0)),
-                "clustering_coefficient": float(clustering.get(node, 0.0)),
+                "clustering_coefficient": internal_clustering,
                 "density": density,
             }
         )
@@ -389,3 +392,134 @@ def save_community_data(
         "edge": edge_path,
         "louvain": louvain_path,
     }
+
+
+def _community_density(size: int, internal_edge_count: int) -> float:
+    max_internal_edges = size * (size - 1) / 2 if size > 1 else 0
+    if max_internal_edges == 0:
+        return 0.0
+    return float(internal_edge_count) / max_internal_edges
+
+
+def _format_count(value: int) -> str:
+    return f"{value:,}".replace(",", ".")
+
+
+def save_community_members_by_density(
+    community_graph: nx.Graph,
+    density_threshold: float,
+    min_size: int,
+    output_dir: Path | str | None = None,
+) -> Path:
+    """Save community member lists for communities over density and size limits."""
+
+    output_dir = Path(output_dir) if output_dir else COMMUNITY_METRICS_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    density_tag = f"{density_threshold:g}".replace(".", "p")
+    output_path = output_dir / (
+        f"community_members_density_gt_{density_tag}_size_ge_{min_size}.csv"
+    )
+
+    community_members: dict[str, list[str]] = {}
+    for node, attrs in community_graph.nodes(data=True):
+        size = int(attrs.get("size", 0))
+        internal_edge_count = int(attrs.get("internal_edge_count", 0))
+        density = _community_density(size, internal_edge_count)
+        if density < density_threshold or size < min_size:
+            continue
+        members = attrs.get("members", [])
+        if not isinstance(members, (list, tuple, set)):
+            members = list(members) if members else []
+        community_members[node] = [str(member) for member in sorted(members)]
+
+    with output_path.open("w", encoding="utf-8", newline="") as fh:
+        fieldnames = list(community_members.keys())
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        max_len = max((len(members) for members in community_members.values()), default=0)
+        for idx in range(max_len):
+            row = {
+                community_id: members[idx] if idx < len(members) else ""
+                for community_id, members in community_members.items()
+            }
+            writer.writerow(row)
+
+    return output_path
+
+
+def save_community_profile_summary(
+    community_graph: nx.Graph,
+    drug_targets: dict[str, list[int] | set[int] | tuple[int, ...]],
+    density_threshold: float,
+    min_size: int,
+    output_dir: Path | str | None = None,
+) -> Path:
+    """Save per-community unique target profile counts with filters applied."""
+
+    output_dir = Path(output_dir) if output_dir else COMMUNITY_METRICS_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    density_tag = f"{density_threshold:g}".replace(".", "p")
+    output_path = output_dir / (
+        f"community_profile_summary_density_ge_{density_tag}_size_ge_{min_size}.json"
+    )
+
+    records: list[dict[str, object]] = []
+    communities = sorted(community_graph.nodes())
+    for node in communities:
+        attrs = community_graph.nodes[node]
+        size = int(attrs.get("size", 0))
+        internal_edge_count = int(attrs.get("internal_edge_count", 0))
+        density = _community_density(size, internal_edge_count)
+        if density < density_threshold or size < min_size:
+            continue
+
+        members = attrs.get("members", [])
+        if not isinstance(members, (list, tuple, set)):
+            members = list(members) if members else []
+
+        profiles = []
+        for member in members:
+            targets = drug_targets.get(str(member))
+            if targets is None:
+                continue
+            profile = tuple(sorted(targets))
+            profiles.append(profile)
+
+        profile_counts = Counter(profiles)
+        unique_profiles = len(profile_counts)
+        shared_profiles = sum(1 for count in profile_counts.values() if count > 1)
+        if profile_counts:
+            most_profile, most_count = profile_counts.most_common(1)[0]
+            most_genes = len(most_profile)
+        else:
+            most_count = 0
+            most_genes = 0
+
+        records.append(
+            {
+                "community_id": str(node),
+                "density": density,
+                "size": size,
+                "unique_profiles": unique_profiles,
+                "shared_profiles": shared_profiles,
+                "most_frequent_profile": {
+                    "drug_count": most_count,
+                    "gene_count": most_genes,
+                },
+            }
+        )
+
+    payload = {
+        "filters": {
+            "density_gte": density_threshold,
+            "size_gte": min_size,
+        },
+        "communities": records,
+    }
+
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, ensure_ascii=False)
+
+    return output_path

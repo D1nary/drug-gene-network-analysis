@@ -14,7 +14,12 @@ from network import (
     build_drug_similarity_network,
     build_community_network,
 )
-from saves import save_network_parameters, save_community_data
+from saves import (
+    save_community_data,
+    save_community_members_by_density,
+    save_community_profile_summary,
+    save_network_parameters,
+)
 from visualizzation import (
     visualize_random_drug_target_subgraph,
     visualize_similarity_subgraph,
@@ -131,6 +136,25 @@ def parse_args() -> argparse.Namespace:
         help="Path to the ChG-InterDecagon_targets.csv(.gz) file "
         "(defaults to ./data/ChG-InterDecagon_targets.csv.gz)",
     )
+    parser.add_argument(
+        "--community-density-threshold",
+        type=float,
+        default=0.99,
+        help=(
+            "Save community member lists for communities whose density exceeds "
+            "this threshold (e.g. 0.9)."
+        ),
+    )
+    parser.add_argument(
+        "--community-min-size",
+        type=int,
+        default=20,
+        help=(
+            "Minimum community size for saving member lists when density filtering "
+            "is enabled. Used as the minimum size to compute per-community "
+            "clustering coefficients."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -205,6 +229,7 @@ def main() -> None:
             weight="weight",
             resolution=1.0,
             seed=42,
+            min_clustering_size=args.community_min_size,
         )
         community_count = len(communities)
         largest = max((len(c) for c in communities), default=0)
@@ -214,6 +239,35 @@ def main() -> None:
         )
 
         save_community_data(community_graph, COMMUNITY_METRICS_DIR)
+        if args.community_density_threshold is not None:
+            drug_targets = {
+                node: data.get("targets", [])
+                for node, data in similarity_graph.nodes(data=True)
+                if data.get("bipartite") == "drug"
+            }
+            members_path = save_community_members_by_density(
+                community_graph,
+                args.community_density_threshold,
+                args.community_min_size,
+                COMMUNITY_METRICS_DIR,
+            )
+            print(
+                "Saved community member lists (density >= "
+                f"{args.community_density_threshold}, size >= "
+                f"{args.community_min_size}) to {members_path}"
+            )
+            summary_path = save_community_profile_summary(
+                community_graph,
+                drug_targets,
+                args.community_density_threshold,
+                args.community_min_size,
+                COMMUNITY_METRICS_DIR,
+            )
+            print(
+                "Saved community profile summary (density >= "
+                f"{args.community_density_threshold}, size >= "
+                f"{args.community_min_size}) to {summary_path}"
+            )
 
         visualize_similarity_subgraph(
             similarity_snapshot,

@@ -189,6 +189,7 @@ def build_community_network(
     weight: str = "weight",
     resolution: float = 1.0,
     seed: int | None = 42,
+    min_clustering_size: int | None = None,
 ) -> tuple[nx.Graph, dict[str, str], list[set[str]]]:
     """Aggregate a graph into a community-level network via the Louvain method.
 
@@ -204,6 +205,10 @@ def build_community_network(
         communities. Defaults to 1.0.
     seed : int | None, optional
         Random seed forwarded to NetworkX for reproducibility.
+    min_clustering_size : int | None, optional
+        Minimum community size required to compute internal clustering.
+        Communities smaller than this get a 0.0 value. Defaults to None
+        (compute for all sizes).
 
     Returns
     -------
@@ -254,12 +259,18 @@ def build_community_network(
 
     community_graph = nx.Graph()
     for label, community in zip(community_labels, communities):
+        subgraph = graph.subgraph(community)
+        if min_clustering_size is not None and len(community) < min_clustering_size:
+            internal_clustering = 0.0
+        else:
+            internal_clustering = nx.average_clustering(subgraph, weight=weight)
         community_graph.add_node(
             label,
             size=len(community),
             members=sorted(community),
             internal_weight=internal_weights.get(label, 0.0),
             internal_edge_count=internal_edges.get(label, 0),
+            internal_clustering_coefficient=internal_clustering,
         )
 
     for (comm_u, comm_v), edge_weight in inter_weights.items():

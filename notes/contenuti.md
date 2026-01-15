@@ -295,6 +295,7 @@ variazioni apprezzabili della densità. La densità riflette quindi l'effetto cu
 di una modesta eterogeneità interna, mentre nelle comunità piccole la stessa
 eterogeneità può rimanere nascosta.
 
+
 ## Weighted degree
 Parametro calcolato per ogni comunità. Rappresenta la somma dei pesi degli archi incidenti su un nodo dove il peso è la similarità jaccard.
 
@@ -456,7 +457,6 @@ ha un significato preciso: un gene è considerato importante per un farmaco solo
 Introduzione della jaccard similarity. Non ha risolto il problma. La Jaccard risolve sovrapposizioni spurie dovute a geni hub quando i profili sono diversi ma non può distinguere farmaci con profili identici o quasi identici (nel nostro caso, 125 farmaci hanno lo STESSO set e decine di altri hanno set che differiscono di pochissimi geni). Le possibili soluizoni possono essere: collassare i profili duplicati, porre un vincolo minimo sull'intersezione o rimuovere gli hub cioè i target troppo frequenti.
 
 Ha senso introdurre queste modifiche? dipende dall'obiettivo. NON LE INTRODUCIAMO VISTO LO SCOPO SEMPLICEMENTE DESCRITTIVO DEL PROGETTO
-
 
 
 

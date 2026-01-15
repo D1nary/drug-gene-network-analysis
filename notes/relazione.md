@@ -161,4 +161,37 @@ Community_188   72    0.324
 Community_192   39    0.601
 Community_203   23    0.482
 
-#### 
+#### Comunità clique
+Nella rete sono presenti due comunità quasi-clique. La prima, è la comunità con il maggior numero di elementi. Essa presenta le seguenti caratteristiche:
+
+- density: 0.999 
+- size: 359
+- unique_profiles: 120
+- shared_profiles: 81
+- most_frequent_profile: 
+   - drug_count: 125
+   - gene_count: 158
+   
+
+Quindi più di un terzo dei componenti della comunità condivide lo stesso esatto insieme di geni. Questo implica che la Jaccard similarity è J = 1 per tutte le coppie di farmaci che condividono lo stesso profilo e J ≈ 1 per le coppie di nodi che differiscono tra loro per pochi geni. Di conseguenza il sottografo della comunità, ovvero il grafo contenente i nodi della comunità e tutti gli archi di similarità compresi, risulta essere quasi completamente connesso producendo density quasi unitaria.
+
+Uno delle possibili cause di questo valore alto di density per una comunity cosi grande, può essere che la Jaccard diventa molto permissiva quando i set sono grandi e l'intersezione tra due set è molto ampia. Infatti avendo set di grandi dimensioni, anche con decine di geni diversi, la similarità resta alta. Avendo poi un threshold sufficientemente permissivo, come nel nostro caso, il valore di $E_{\text{int}} \approx \frac{n(n-1)}{2}$ con conseguente density $\approx 1$. In questo caso non siamo difronte ad una ad una causa biologica dei farmaci ma piuttosto ad una causa dovuta da una proprietà matematica della Jaccard similarity. 
+
+
+Un'ulteriore causa del valore quasi unitario di questa community, potrebbe provenire dalla natura intrinseca del dataset. Infatti esso, aggregando screening diversi producendo il risultato che farmaci testati negli stessi screening, sugli stessi pannelli genici con risultati simili diventano vettorialmente indistinguibili. Questo produce sottografi altamente densi nella rete di similarità (profili identici -> tutte le connessioni di similarità sono presenti -> con threshold basso tutti gli archi sono presenti -> density = 1)
+
+--- 
+Farmaci testati negli stessi screening:
+
+- screening 1: testa A e B su geni {G1, G2, G3}
+- screening 2: testa A e B sugli stessi geni {G1, G2, G3}
+- screening 3: testa A e B sugli stessi geni {G1, G2, G3}
+
+screening diversi = esperimenti diversi (utilizzando stessi farmaci e geni target)
+---
+
+All'interno del dataset quindi, molti farmaci sono distinti per nome o contesto, ma non per profilo genetico producendo nodi distinti con vettori profilo identici e archi completi. Ogni farmaco è un nodo distinto identificato da un ID chimico con possibilità che provenga da fonti diverse, screening diversi o contesti sperimentali divesti. In altre parole due molecole possono essere chimicamente diverse o chimicamente molto simili o lo stesso composto annotato in contesti divesi. Si ha la produzione di un clique artificilae dal punto di vista topologico. 
+
+Biologicamente, senza nessuna analisy più prodonda, questa comunità rappresenta una classe di composti con meccanismo d'azione quasi identico oppure il targeting di uno stesso grande pathway o complesso genico. Per capire meglio la natura di questa communiti andrebbero condotte analisi più approfondite. 
+
+sss
