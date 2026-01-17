@@ -1,0 +1,30 @@
+{
+  "filters": {
+    "density_gte": 0.99,
+    "size_gte": 20
+  },
+  "communities": [
+    {
+      "community_id": "Community_5",
+      "density": 0.9998755076951806,
+      "size": 359,
+      "unique_profiles": 120,
+      "shared_profiles": 81,
+      "most_frequent_profile": {
+        "drug_count": 125,
+        "gene_count": 158
+      }
+    },
+    {
+      "community_id": "Community_81",
+      "density": 1.0,
+      "size": 20,
+      "unique_profiles": 2,
+      "shared_profiles": 1,
+      "most_frequent_profile": {
+        "drug_count": 19,
+        "gene_count": 2
+      }
+    }
+  ]
+}

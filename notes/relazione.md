@@ -194,4 +194,65 @@ All'interno del dataset quindi, molti farmaci sono distinti per nome o contesto,
 
 Biologicamente, senza nessuna analisy più prodonda, questa comunità rappresenta una classe di composti con meccanismo d'azione quasi identico oppure il targeting di uno stesso grande pathway o complesso genico. Per capire meglio la natura di questa communiti andrebbero condotte analisi più approfondite. 
 
-sss
+È inoltre presente una comunità con size 20 e density 1. In questo caso, il numero di archi possibili sono 190 e, similmente al caso sprecedente, il numero di archi presenti nella comunity è 190. In partiolare 19 farmaci su 20 hanno lo stesso identico profilo target il quale contiene solo 2 geni. Questo caso rappresenta un clique più banale del precedente poichè il profilo è piccolissimo ed essendo in preseza di una replica quasi perfetta. 
+
+Biologicamente la community può essere interpretata come lo stesso evento biologico ripetuto in condizioni sperimentali diverse o come replica tecnica. Non rappresenta una famiglia farmacologica ma è una ridondanza del dataset
+
+### Clustering coefficient
+Per ciascuna comunity, è stato calcolato il clustering coefficient.
+community_id size density clustering_coefficient
+
+Community_5 359 1.000 0.903
+Community_20 22 0.792 0.593
+Community_21 82 0.778 0.631
+Community_22 83 0.913 0.851
+Community_54 22 0.745 0.574
+Community_78 32 0.905 0.653
+Community_81 20 1.000 0.964
+Community_188 72 0.324 0.616
+Community_192 39 0.601 0.706
+Community_203 23 0.482 0.513
+
+Globalmente di può osservare che le comunità hanno valori mediamente alti di clustering coefficient. Questo suggerisce che le comunità individuate non presentano una struttura lineare o “a catena”, in cui i farmaci risultano simili solo a pochi vicini immediati, ma piuttosto costituiscono moduli fortemente coesi. Cioè, se un farmaco è simile ad altri farmaci all'interno della comuintà, è molto porbabile che esso sia siamile ad altri componenti della stessa. In questi casi i famaci hanno profili bersaglio molto sovrapposti.
+
+Le community 20, 21, 22, 54, 78 presentano valori compresi tra:
+| Size  | Density   | Clustering |
+| ----- | --------- | ---------- |
+| 22–83 | 0.74–0.91 | 0.57–0.85  |
+
+quindi con densità alta ma minore di 1 e clustering coefficient alto. Da questi dati si può dire che non tutti i farmaci sono simili agli altri ma esistono sottogruppi molto coerenti all'interno della comunità. In altre parole, la comunità è composta da blocchi locali (blocchi di traingoli) fortemente connessi. Biologicamente, è possibile la presenza di famiglie farmacologiche in cui esiste un nucleo di target comuni ed in cui ogni farmaco può introdurre cariazioni marginali sul profilo. Possono essere presenti sotto-meccanismi d'azione in cui i geni della comunity condividono un nucleo di geni bersaglio ma ciascuno interagice con geni aggiuntivi diversi. 
+
+Sono presenti inoltre, comunità con bassa density e clustering moderato
+---
+Density bassa
+→ molti farmaci non sono direttamente simili tra loro
+→ la comunità non è un blocco compatto
+
+Clustering moderato
+→ quando un farmaco è simile a due altri, quei due tendono comunque a essere simili tra loro
+→ esistono triangoli locali, cioè sottogruppi coerenti
+
+👉 Questo implica che la comunità è composta da più sottogruppi locali (cluster densi) connessi da pochi nodi (farmaci ponte).
+---
+(questo è possibile poichè la density guarda la similarità globale mentre il clustering guarda solo ai vicini comuni)
+| Community | Size | Density | Clustering |
+| --------- | ---- | ------- | ---------- |
+| 188       | 72   | 0.324   | 0.616      |
+| 203       | 23   | 0.482   | 0.513      |
+
+Queste comunità mostrano poche connessioni globali ma connessioni locali ben strutturate. In altre parole, la comunità non è un blocco compatto ma un insieme di cluster locali collegati indirettamente. Biologicamente, siamo in presenza di profili target eterogenei e farmci che condividono solo alcune componenti funzionali o pathway comuni. Quindi possibile presenza di pathway parzialmente condivisi farmaci ponte tra meccanismi diversi. In questo caso il clustering coefficient è molto informativo poichè rivela coerenza locale della community nascosta dalla bassa density.
+
+
+Un'ultimo caso che si può notare dalla tabella precedente sono comunità con density $\approx 1$ e clustering alto. 
+| Community | Size | Density | Clustering |
+| --------- | ---- | ------- | ---------- |
+| 5         | 359  | 1.000   | 0.903      |
+| 81        | 20   | 1.000   | 0.964      |
+In queste comunità il clustering coefficient non aggiunge nuova informazione rispetto alla density, ma rafforza l’evidenza di omogeneità estrema.
+
+## Weighted degree
+Per descrivere il livello complessivo di interazione di una comunità con le altre è stato calcolato, per ciascuna comunittà il parametro weighed degree. Esso è calcolato come la somma dei pesi degli archi inter-comunità (similarità Jaccard). 
+
+Solo le comunità 22 e 78 risultano essere connesse tra di loro con un $\text{weighted degree} = 12.99$. Il fatto che solo due comunità risultano collegate è coerente con le scelte fatte per l'individuazzione della similarità e delle comunità (jaccsrd similarity e Lousvian  method). 
+
+Siccome, un arco tra due comunità esiste solo se esistono farmaci appartenenti a comunità diverse ma connessi e che quindi condividono una porzione significativa di target genici (Jaccard maggiore uguale a 0.4), le due comunità rappresentano moduli farmacologici distinti ma non indipendenti. Le due comunità possono essere associate a pathway diversi ma interconnessi con una sovrapposizione non trascurabile di geni chiave. Alcuni esempi possono essere pathway di segnalazione che convergono su nodi comuni, pathway a monte / a valle oppure pathway cellulari trasversali. Ilfarmaci che connettono le due comunità vengono chiamati farmaci ponte. Essi sono multi-target colpendo geni presenti in entrambe le comunità avendo inoltre, profili più "larghi" rispetto a farmaci altamente specifici. 
