@@ -297,25 +297,17 @@ eterogeneità può rimanere nascosta.
 
 
 ## Weighted degree
-Parametro calcolato per ogni comunità. Rappresenta la somma dei pesi degli archi incidenti su un nodo dove il peso è la similarità jaccard.
+Nel file community_parameters.csv, il weighted degree di una comunità non descrive la sua coesione interna, ma il livello complessivo di interazione con le altre comunità.
 
----
-Cos'è la somma dei pesi? 
-Ricordiamo che nelladrug–drug similarity network:
-- nodi → farmaci
-- archi → connessioni tra farmaci
-- peso dell’arco → valore di similarità (es. Jaccard)
----
+Questo perché il valore è calcolato sul community graph, un grafo in cui:
+- ogni nodo rappresenta una comunità individuata con il metodo di Louvain;
+- un arco tra due comunità esiste se nel grafo originale di similarità sono presenti connessioni tra farmaci appartenenti alle due comunità;
+- il peso dell’arco tra due comunità è definito come la somma dei pesi di tutte le connessioni farmaco–farmaco che collegano nodi appartenenti alle due comunità (come implementato in network.py).
 
-Significato biologico:
-- Degree alto ma weighted_degree basso → molti legami deboli (similarità appena sopra soglia)
-- Degree moderato ma weighted_degree alto → pochi legami ma molto forti (quasi duplicati funzionali)
-
-Interpretazione a livello di community:
-- weighted_degree medio alto → community coerente e omogenea
-- weighted_degree medio basso → community eterogenea, legami deboli
-
-In altre parole, degree misura la quantità di connessioni, weighted degree misura la forza complessiva delle similarità
+Di conseguenza, il weighted degree di una comunità è la somma dei pesi di tutti gli archi che la collegano alle altre comunità nel community graph, e quantifica quanto intensamente quella comunità interagisce, in termini di similarità complessiva, con il resto della rete.
+In altre parole, questo parametro misura:
+- la forza delle connessioni esterne di una comunità,
+- il suo possibile ruolo di ponte o hub tra moduli diversi,
 
 ## Clustering coefficient
 Il clustering coefficient misura il grado di chiusura locale delle comunità, quantificando la tendenza dei farmaci a formare triangoli di similarità. Valori elevati indicano moduli altamente coerenti, in cui farmaci simili a un terzo sono anche reciprocamente simili, mentre valori più bassi suggeriscono strutture eterogenee o la presenza di farmaci con ruolo di ponte tra profili funzionali differenti.
@@ -345,6 +337,7 @@ Interpretazione biologica:
 - farmaci ponte
 - polifarmacologia
 - target comuni “generici” (hub biologici)
+
 
 
 ### Interpretazione del clustering coefficient e delle connessioni indirette

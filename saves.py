@@ -16,9 +16,11 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RESULTS_DIR = PROJECT_ROOT / "results"
-PARAMETERS_DIR = RESULTS_DIR / "network_parameters"
+PARAMETERS_DIR = RESULTS_DIR
 COMMUNITY_DIR = RESULTS_DIR / "community"
 COMMUNITY_METRICS_DIR = COMMUNITY_DIR / "community_network_metrics"
+CO_OCCURENCE_DIR = RESULTS_DIR / "co_occurence"
+CO_OCCURENCE_PARAMETERS_DIR = CO_OCCURENCE_DIR / "parameters"
 
 
 def _sanitize_label(label: str) -> str:
@@ -216,6 +218,104 @@ def save_network_parameters(
         "edge": edge_path,
         "filtering": filtering_path,
     }
+
+
+def compute_cooccurrence_parameters(
+    graph: nx.Graph,
+    weight_attr: str = "weight",
+    weight_ge_threshold: int = 3,
+) -> dict[str, object]:
+    """Compute co-occurrence network metrics (excluding assortativity)."""
+
+    node_count = graph.number_of_nodes()
+    edge_count = graph.number_of_edges()
+    density = nx.density(graph) if node_count > 1 else 0.0
+    component_count = (
+        nx.number_connected_components(graph)
+        if node_count > 0
+        else 0
+    )
+    largest_component_size = (
+        max((len(c) for c in nx.connected_components(graph)), default=0)
+        if node_count > 0
+        else 0
+    )
+    global_clustering = nx.transitivity(graph) if node_count > 2 else 0.0
+
+    weights = [
+        float(data.get(weight_attr, 1.0))
+        for _, _, data in graph.edges(data=True)
+    ]
+    if weights:
+        min_weight = float(np.min(weights))
+        median_weight = float(np.median(weights))
+        mean_weight = float(np.mean(weights))
+        max_weight = float(np.max(weights))
+    else:
+        min_weight = median_weight = mean_weight = max_weight = 0.0
+
+    weight_eq_1 = 0
+    weight_eq_2 = 0
+    weight_ge_k = 0
+    for weight in weights:
+        weight_int = int(round(weight))
+        if weight_int == 1:
+            weight_eq_1 += 1
+        elif weight_int == 2:
+            weight_eq_2 += 1
+        if weight_int >= weight_ge_threshold:
+            weight_ge_k += 1
+
+    if edge_count > 0:
+        pct_eq_1 = (weight_eq_1 / edge_count) * 100.0
+        pct_eq_2 = (weight_eq_2 / edge_count) * 100.0
+        pct_ge_k = (weight_ge_k / edge_count) * 100.0
+    else:
+        pct_eq_1 = pct_eq_2 = pct_ge_k = 0.0
+
+    return {
+        "n_nodes": node_count,
+        "n_edges": edge_count,
+        "density": density,
+        "component_count": component_count,
+        "giant_component_size": largest_component_size,
+        "global_clustering_coefficient": global_clustering,
+        "weight_distribution": {
+            "min": min_weight,
+            "median": median_weight,
+            "mean": mean_weight,
+            "max": max_weight,
+        },
+        "weight_sparsity": {
+            "weight_eq_1_pct": pct_eq_1,
+            "weight_eq_2_pct": pct_eq_2,
+            "weight_ge_threshold": weight_ge_threshold,
+            "weight_ge_threshold_pct": pct_ge_k,
+        },
+    }
+
+
+def save_cooccurrence_parameters(
+    graph: nx.Graph,
+    output_dir: Path | str | None = None,
+    weight_attr: str = "weight",
+    weight_ge_threshold: int = 3,
+) -> Path:
+    """Save co-occurrence network parameters to a single file."""
+
+    output_dir = Path(output_dir) if output_dir else CO_OCCURENCE_PARAMETERS_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    params = compute_cooccurrence_parameters(
+        graph,
+        weight_attr=weight_attr,
+        weight_ge_threshold=weight_ge_threshold,
+    )
+    output_path = output_dir / "co_occurence_parameters.json"
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(params, fh, indent=2, ensure_ascii=False)
+
+    return output_path
 
 
 def _community_weight_distribution(weights: list[float]) -> dict[str, float]:

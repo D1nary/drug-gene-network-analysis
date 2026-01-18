@@ -11,6 +11,7 @@ import pandas as pd
 
 from network import (
     build_drug_target_network,
+    build_drug_cooccurrence_network,
     build_drug_similarity_network,
     build_community_network,
 )
@@ -18,6 +19,7 @@ from saves import (
     save_community_data,
     save_community_members_by_density,
     save_community_profile_summary,
+    save_cooccurrence_parameters,
     save_network_parameters,
 )
 from visualizzation import (
@@ -155,6 +157,16 @@ def parse_args() -> argparse.Namespace:
             "clustering coefficients."
         ),
     )
+    parser.add_argument(
+        "--networks",
+        nargs="+",
+        choices=["similarity", "community", "cooccurence"],
+        default=["similarity", "community", "cooccurence"],
+        help=(
+            "Networks to build and save. "
+            "Choose from: similarity, community, cooccurence."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -162,6 +174,7 @@ def main() -> None:
     # Parse CLI options and resolve the dataset path
     args = parse_args()
     data_path = args.data_path.expanduser().resolve()
+    requested = set(args.networks)
 
     # Make sure the results directories exist before further processing
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -186,44 +199,58 @@ def main() -> None:
     drug_param_paths = save_network_parameters(
         drug_spotlight,
         label="mid_degree_drug_spotlight",
+        output_root=RESULTS_DIR / "drug_gene",
     )
     print(
         "Saved mid-degree spotlight parameters to",
         drug_param_paths["global"].parent,
     )
 
-    similarity_threshold = 0.40
-    similarity_graph = build_drug_similarity_network(
-        df,
-        similarity_threshold=similarity_threshold,
-    )
-    filtering_details = {
-        "similarity_threshold": similarity_threshold,
-        "nodes_removed": similarity_graph.graph.get("removed_drugs"),
-        "edges_filtered": similarity_graph.graph.get("filtered_edges"),
-        "original_node_count": similarity_graph.graph.get("original_drug_count"),
-        "retained_node_count": similarity_graph.graph.get("retained_drug_count"),
-        "potential_edges": similarity_graph.graph.get("potential_edges"),
-    }
-    if similarity_graph.number_of_nodes() == 0:
-        print("Similarity graph is empty; skipping visualization.")
-    else:
-        snapshot_seed = 2
-        similarity_snapshot = visualize_similarity_subgraph(
-            similarity_graph,
-            max_nodes=500,
-            title="Random drug similarity snapshot",
+    similarity_graph = None
+    similarity_snapshot = None
+    if "similarity" in requested or "community" in requested:
+        similarity_threshold = 0.40
+        similarity_graph = build_drug_similarity_network(
+            df,
+            similarity_threshold=similarity_threshold,
         )
-        similarity_param_paths = save_network_parameters(
-            similarity_snapshot,
-            label="random_similarity_snapshot",
-            filtering_details=filtering_details,
-        )
-        print(
-            "Saved random similarity snapshot parameters to",
-            similarity_param_paths["global"].parent,
-        )
+        filtering_details = {
+            "similarity_threshold": similarity_threshold,
+            "nodes_removed": similarity_graph.graph.get("removed_drugs"),
+            "edges_filtered": similarity_graph.graph.get("filtered_edges"),
+            "original_node_count": similarity_graph.graph.get("original_drug_count"),
+            "retained_node_count": similarity_graph.graph.get("retained_drug_count"),
+            "potential_edges": similarity_graph.graph.get("potential_edges"),
+        }
+        if similarity_graph.number_of_nodes() == 0:
+            print("Similarity graph is empty; skipping visualization.")
+        else:
+            snapshot_seed = 2
+            similarity_snapshot = visualize_similarity_subgraph(
+                similarity_graph,
+                max_nodes=500,
+                title="Random drug similarity snapshot",
+            )
+            similarity_param_paths = save_network_parameters(
+                similarity_snapshot,
+                label="random_similarity_snapshot",
+                output_root=RESULTS_DIR / "similarity",
+                filtering_details=filtering_details,
+            )
+            print(
+                "Saved random similarity snapshot parameters to",
+                similarity_param_paths["global"].parent,
+            )
 
+    if "cooccurence" in requested:
+        cooccurrence_graph = build_drug_cooccurrence_network(df)
+        cooccurrence_path = save_cooccurrence_parameters(cooccurrence_graph)
+        print(f"Saved co-occurrence parameters to {cooccurrence_path}")
+
+    if "community" in requested:
+        if similarity_graph is None or similarity_graph.number_of_nodes() == 0:
+            print("Community requested but similarity graph is empty.")
+            return
         community_graph, membership, communities = build_community_network(
             similarity_graph,
             weight="weight",
@@ -269,16 +296,17 @@ def main() -> None:
                 f"{args.community_min_size}) to {summary_path}"
             )
 
-        visualize_similarity_subgraph(
-            similarity_snapshot,
-            max_nodes=similarity_snapshot.number_of_nodes(),
-            title="Drug similarity snapshot by community",
-            seed=snapshot_seed,
-            community_membership=membership,
-            output_dir=COMMUNITY_DIR,
-            max_legend_items=20,
-            legend_columns=1,
-        )
+        if similarity_snapshot is not None:
+            visualize_similarity_subgraph(
+                similarity_snapshot,
+                max_nodes=similarity_snapshot.number_of_nodes(),
+                title="Drug similarity snapshot by community",
+                seed=snapshot_seed,
+                community_membership=membership,
+                output_dir=COMMUNITY_DIR,
+                max_legend_items=20,
+                legend_columns=1,
+            )
 
 
 
