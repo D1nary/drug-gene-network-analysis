@@ -259,4 +259,7 @@ Siccome, un arco tra due comunità esiste solo se esistono farmaci appartenenti 
 
 Il valore di weighted degree legato alla connessione di queste due comunità è di 12.99.
 
+# Co-occurence network
+
+
 

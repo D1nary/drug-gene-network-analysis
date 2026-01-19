@@ -1,0 +1,12 @@
+{
+  "node_count": 1441,
+  "edge_count": 73558,
+  "density": 0.0708979104017272,
+  "mean_weight": 0.8882611988269911,
+  "median_weight": 0.9244186046511628,
+  "min_weight": 0.4,
+  "max_weight": 1.0,
+  "std_weight": 0.1288198628965246,
+  "component_count": 260,
+  "largest_component_size": 359
+}

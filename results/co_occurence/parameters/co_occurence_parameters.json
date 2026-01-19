@@ -1,0 +1,20 @@
+{
+  "n_nodes": 1774,
+  "n_edges": 284157,
+  "density": 0.18068662405072708,
+  "component_count": 8,
+  "giant_component_size": 1757,
+  "global_clustering_coefficient": 0.707331313060946,
+  "weight_distribution": {
+    "min": 1.0,
+    "median": 3.0,
+    "mean": 41.42018320857836,
+    "max": 3812.0
+  },
+  "weight_sparsity": {
+    "weight_eq_1_pct": 34.82159510411498,
+    "weight_eq_2_pct": 11.416927965878019,
+    "weight_ge_threshold": 3,
+    "weight_ge_threshold_pct": 53.761476930007
+  }
+}

@@ -11,7 +11,7 @@ import pandas as pd
 
 from network import (
     build_drug_target_network,
-    build_drug_cooccurrence_network,
+    build_gene_cooccurrence_network,
     build_drug_similarity_network,
     build_community_network,
 )
@@ -161,7 +161,9 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        default=["similarity", "community", "cooccurence"],
+        # default=["similarity", "community", "cooccurence"],
+        # default=["similarity", "community"],
+        default=["cooccurence"],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
@@ -232,18 +234,18 @@ def main() -> None:
                 title="Random drug similarity snapshot",
             )
             similarity_param_paths = save_network_parameters(
-                similarity_snapshot,
-                label="random_similarity_snapshot",
+                similarity_graph,
+                label="similarity_network",
                 output_root=RESULTS_DIR / "similarity",
                 filtering_details=filtering_details,
             )
             print(
-                "Saved random similarity snapshot parameters to",
+                "Saved similarity network parameters to",
                 similarity_param_paths["global"].parent,
             )
 
     if "cooccurence" in requested:
-        cooccurrence_graph = build_drug_cooccurrence_network(df)
+        cooccurrence_graph = build_gene_cooccurrence_network(df)
         cooccurrence_path = save_cooccurrence_parameters(cooccurrence_graph)
         print(f"Saved co-occurrence parameters to {cooccurrence_path}")
 

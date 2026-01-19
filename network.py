@@ -184,8 +184,8 @@ def build_drug_similarity_network(
     return G
 
 
-def build_drug_cooccurrence_network(df: pd.DataFrame) -> nx.Graph:
-    """Create a weighted drug co-occurrence network via shared targets."""
+def build_gene_cooccurrence_network(df: pd.DataFrame) -> nx.Graph:
+    """Create a weighted gene co-occurrence network via shared drugs."""
 
     required_cols = {"Drug", "Gene"}
     if not required_cols.issubset(df.columns):
@@ -195,17 +195,17 @@ def build_drug_cooccurrence_network(df: pd.DataFrame) -> nx.Graph:
         )
 
     bipartite_graph = build_drug_target_network(df)
-    drug_nodes = [
+    gene_nodes = [
         node
         for node, data in bipartite_graph.nodes(data=True)
-        if data.get("bipartite") == "drug"
+        if data.get("bipartite") == "gene"
     ]
 
     cooccurrence_graph = nx.algorithms.bipartite.weighted_projected_graph(
         bipartite_graph,
-        drug_nodes,
+        gene_nodes,
     )
-    cooccurrence_graph.graph["metric"] = "shared_targets_count"
+    cooccurrence_graph.graph["metric"] = "shared_drugs_count"
 
     return cooccurrence_graph
 
