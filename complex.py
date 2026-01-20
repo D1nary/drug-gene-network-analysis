@@ -16,10 +16,11 @@ from network import (
     build_community_network,
 )
 from saves import (
+    compute_cooccurrence_parameters,
     save_community_data,
     save_community_members_by_density,
     save_community_profile_summary,
-    save_cooccurrence_parameters,
+    save_cooccurrence_parameters_by_community,
     save_network_parameters,
 )
 from visualizzation import (
@@ -161,12 +162,45 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        # default=["similarity", "community", "cooccurence"],
+        default=["similarity", "community", "cooccurence"],
         # default=["similarity", "community"],
-        default=["cooccurence"],
+        # default=["cooccurence"],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
+        ),
+    )
+    parser.add_argument(
+        "--cooccurrence-min-drugs-per-gene",
+        type=int,
+        default=3,
+        help="Minimum number of drugs per gene to keep genes in co-occurrence.",
+    )
+    parser.add_argument(
+        "--cooccurrence-max-drugs-percentile",
+        type=float,
+        default=95.0,
+        help=(
+            "Percentile cutoff for max drugs per gene when filtering the "
+            "co-occurrence network (e.g. 95)."
+        ),
+    )
+    parser.add_argument(
+        "--cooccurrence-weight-threshold",
+        type=int,
+        default=1,
+        help=(
+            "Minimum shared-drugs weight to keep co-occurrence edges "
+            "(1 disables filtering)."
+        ),
+    )
+    parser.add_argument(
+        "--cooccurrence-community-min-size",
+        type=int,
+        default=20,
+        help=(
+            "Minimum community size required to build per-community "
+            "co-occurrence networks."
         ),
     )
     return parser.parse_args()
@@ -210,7 +244,11 @@ def main() -> None:
 
     similarity_graph = None
     similarity_snapshot = None
-    if "similarity" in requested or "community" in requested:
+    community_graph = None
+    membership = {}
+    communities = []
+    if {"similarity", "community", "cooccurence"} & requested:
+        print("SIMILARITY NETWORK CREATION")
         similarity_threshold = 0.40
         similarity_graph = build_drug_similarity_network(
             df,
@@ -244,22 +282,23 @@ def main() -> None:
                 similarity_param_paths["global"].parent,
             )
 
-    if "cooccurence" in requested:
-        cooccurrence_graph = build_gene_cooccurrence_network(df)
-        cooccurrence_path = save_cooccurrence_parameters(cooccurrence_graph)
-        print(f"Saved co-occurrence parameters to {cooccurrence_path}")
+    if {"community", "cooccurence"} & requested:
+        if similarity_graph is None or similarity_graph.number_of_nodes() == 0:
+            print("Community/co-occurrence requested but similarity graph is empty.")
+        else:
+            print("COMMUNITY NETWORK CREATION")
+            community_graph, membership, communities = build_community_network(
+                similarity_graph,
+                weight="weight",
+                resolution=1.0,
+                seed=42,
+                min_clustering_size=args.community_min_size,
+            )
 
     if "community" in requested:
-        if similarity_graph is None or similarity_graph.number_of_nodes() == 0:
-            print("Community requested but similarity graph is empty.")
+        if community_graph is None or community_graph.number_of_nodes() == 0:
+            print("Community requested but no communities were generated.")
             return
-        community_graph, membership, communities = build_community_network(
-            similarity_graph,
-            weight="weight",
-            resolution=1.0,
-            seed=42,
-            min_clustering_size=args.community_min_size,
-        )
         community_count = len(communities)
         largest = max((len(c) for c in communities), default=0)
         print(
@@ -309,6 +348,42 @@ def main() -> None:
                 max_legend_items=20,
                 legend_columns=1,
             )
+
+    if "cooccurence" in requested:
+        if not communities:
+            print("Co-occurrence requested but no communities were generated.")
+        else:
+            print("CO-OCCURRENCE NETWORK CREATION")
+            community_parameters = {}
+            for idx, community in enumerate(communities):
+                if len(community) < args.cooccurrence_community_min_size:
+                    continue
+                label = f"Community_{idx}"
+                drug_ids = [
+                    int(node.replace("Drug_", ""))
+                    for node in community
+                    if str(node).startswith("Drug_")
+                ]
+                if not drug_ids:
+                    continue
+                community_df = df[df["Drug"].isin(drug_ids)]
+                cooccurrence_graph = build_gene_cooccurrence_network(
+                    community_df,
+                    min_drugs_per_gene=args.cooccurrence_min_drugs_per_gene,
+                    max_drugs_per_gene_percentile=args.cooccurrence_max_drugs_percentile,
+                    weight_threshold=args.cooccurrence_weight_threshold,
+                )
+                params = compute_cooccurrence_parameters(
+                    cooccurrence_graph,
+                    weight_ge_threshold=args.cooccurrence_weight_threshold,
+                )
+                params["community_size"] = len(community)
+                community_parameters[label] = params
+
+            cooccurrence_path = save_cooccurrence_parameters_by_community(
+                community_parameters
+            )
+            print(f"Saved co-occurrence parameters to {cooccurrence_path}")
 
 
 

@@ -318,6 +318,22 @@ def save_cooccurrence_parameters(
     return output_path
 
 
+def save_cooccurrence_parameters_by_community(
+    community_parameters: dict[str, dict[str, object]],
+    output_dir: Path | str | None = None,
+) -> Path:
+    """Save per-community co-occurrence parameters to a single JSON file."""
+
+    output_dir = Path(output_dir) if output_dir else CO_OCCURENCE_PARAMETERS_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = output_dir / "co_occurence_parameters.json"
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(community_parameters, fh, indent=2, ensure_ascii=False)
+
+    return output_path
+
+
 def _community_weight_distribution(weights: list[float]) -> dict[str, float]:
     if not weights:
         return {

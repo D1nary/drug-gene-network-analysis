@@ -262,4 +262,7 @@ Il valore di weighted degree legato alla connessione di queste due comunità è 
 # Co-occurence network
 
 
+A causa dell'elevato costo computazionale relativo al calcolo di una co-occurence network globale, si è scelto di creare ed analizzare co-occurence network per ciascuna comunità precedentemente identificata attraverso la community analisys. Ci si è concentrati sulle comunitò con una $\text{size} \geq 20$.
+
+
 

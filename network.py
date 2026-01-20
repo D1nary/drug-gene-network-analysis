@@ -184,7 +184,12 @@ def build_drug_similarity_network(
     return G
 
 
-def build_gene_cooccurrence_network(df: pd.DataFrame) -> nx.Graph:
+def build_gene_cooccurrence_network(
+    df: pd.DataFrame,
+    min_drugs_per_gene: int = 3,
+    max_drugs_per_gene_percentile: float = 95.0,
+    weight_threshold: int = 1,
+) -> nx.Graph:
     """Create a weighted gene co-occurrence network via shared drugs."""
 
     required_cols = {"Drug", "Gene"}
@@ -194,18 +199,83 @@ def build_gene_cooccurrence_network(df: pd.DataFrame) -> nx.Graph:
             f"but has {set(df.columns)}."
         )
 
-    bipartite_graph = build_drug_target_network(df)
-    gene_nodes = [
-        node
-        for node, data in bipartite_graph.nodes(data=True)
-        if data.get("bipartite") == "gene"
-    ]
+    tmp = df[["Drug", "Gene"]].copy()
+    tmp["Drug"] = tmp["Drug"].astype(int)
+    tmp["Gene"] = tmp["Gene"].astype(int)
+    tmp = tmp.drop_duplicates(subset=["Drug", "Gene"])
 
-    cooccurrence_graph = nx.algorithms.bipartite.weighted_projected_graph(
-        bipartite_graph,
-        gene_nodes,
+    gene_drug_counts = tmp.groupby("Gene")["Drug"].nunique()
+    original_gene_count = int(gene_drug_counts.shape[0])
+    if gene_drug_counts.empty:
+        empty_graph = nx.Graph()
+        empty_graph.graph.update(
+            {
+                "metric": "shared_drugs_count",
+                "min_drugs_per_gene": min_drugs_per_gene,
+                "max_drugs_per_gene_percentile": max_drugs_per_gene_percentile,
+                "max_drugs_per_gene_value": 0.0,
+                "cooccurrence_weight_threshold": weight_threshold,
+                "original_gene_count": 0,
+                "retained_gene_count": 0,
+                "removed_genes": 0,
+                "filtered_edges": 0,
+            }
+        )
+        return empty_graph
+
+    percentile_value = float(
+        gene_drug_counts.quantile(max_drugs_per_gene_percentile / 100.0)
     )
-    cooccurrence_graph.graph["metric"] = "shared_drugs_count"
+    informative_genes = gene_drug_counts[
+        (gene_drug_counts >= min_drugs_per_gene)
+        & (gene_drug_counts <= percentile_value)
+    ].index
+    retained_gene_count = int(len(informative_genes))
+    removed_genes = max(original_gene_count - retained_gene_count, 0)
+
+    filtered_tmp = tmp[tmp["Gene"].isin(informative_genes)]
+    gene_ids = sorted(set(filtered_tmp["Gene"].astype(int).tolist()))
+    cooccurrence_graph = nx.Graph()
+    cooccurrence_graph.add_nodes_from(f"Gene_{gene_id}" for gene_id in gene_ids)
+
+    shared_drug_counts: dict[tuple[int, int], int] = {}
+    for _, group in filtered_tmp.groupby("Drug"):
+        genes = sorted(set(group["Gene"].astype(int).tolist()))
+        if len(genes) < 2:
+            continue
+        for gene_a, gene_b in combinations(genes, 2):
+            key = (gene_a, gene_b)
+            shared_drug_counts[key] = shared_drug_counts.get(key, 0) + 1
+
+    filtered_edges = 0
+    for (gene_a, gene_b), weight in shared_drug_counts.items():
+        if weight_threshold is not None and weight < weight_threshold:
+            filtered_edges += 1
+            continue
+        cooccurrence_graph.add_edge(
+            f"Gene_{gene_a}",
+            f"Gene_{gene_b}",
+            weight=float(weight),
+        )
+
+    if weight_threshold is not None and weight_threshold > 1:
+        isolated = [node for node, degree in cooccurrence_graph.degree() if degree == 0]
+        if isolated:
+            cooccurrence_graph.remove_nodes_from(isolated)
+
+    cooccurrence_graph.graph.update(
+        {
+            "metric": "shared_drugs_count",
+            "min_drugs_per_gene": min_drugs_per_gene,
+            "max_drugs_per_gene_percentile": max_drugs_per_gene_percentile,
+            "max_drugs_per_gene_value": percentile_value,
+            "cooccurrence_weight_threshold": weight_threshold,
+            "original_gene_count": original_gene_count,
+            "retained_gene_count": retained_gene_count,
+            "removed_genes": removed_genes,
+            "filtered_edges": filtered_edges,
+        }
+    )
 
     return cooccurrence_graph
 
