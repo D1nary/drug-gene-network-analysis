@@ -295,6 +295,65 @@ variazioni apprezzabili della densità. La densità riflette quindi l'effetto cu
 di una modesta eterogeneità interna, mentre nelle comunità piccole la stessa
 eterogeneità può rimanere nascosta.
 
+### Come mai comunità più piccole hanno valori di densiti più stabile
+Questo può essere spiegato matematicamente dal fatto che comunità piccole tendono, per costruzione, a mostrare valori di density più stabili e meno dispersi rispetto a quelle grandi. In queste comunità infatti, sebbene ogni singolo arco contribuisca in modo relativamente maggiore al valore della density nelle comunità di piccole dimensioni, una riduzione significativa della densità richiede l’assenza sistematica di molte connessioni interne. In assenza di eterogeneità strutturata nei profili dei nodi, le comunità piccole tendono quindi a mantenere valori di densità elevati.
+
+ESEMPIO
+
+**n = 20**  ⇒  **E_max = 190**
+
+Se mancano:
+- **10 archi** →  
+  **density = 180 / 190 ≈ 0.947**
+
+- **30 archi** →  
+  **density = 160 / 190 ≈ 0.842**
+
+👉 **Servono molte assenze coordinate per abbassare davvero la density.**
+
+Il motivo è semplice:
+- anche se ogni arco pesa relativamente tanto,
+- il numero assoluto di archi possibili è comunque limitato,
+- quindi una manciata di archi mancanti non è sufficiente a ridurre drasticamente il rapporto.
+
+### La Jaccard diventa molto permissiva quando i set sono grandi e l'intersezione tra due set è molto ampia.
+
+Supponiamo tre farmaci *A*, *B*, *C* appartenenti a una grande comunità.
+
+Profili target
+
+- \(|A| = 300\) geni  
+- \(|B| = 300\) geni  
+- \(|C| = 300\) geni  
+
+Con intersezioni
+
+- \(|A \cap B| = 250\)  
+- \(|A \cap C| = 245\)  
+- \(|B \cap C| = 255\)  
+
+Calcolo della Jaccard
+
+Per *A* e *B*:
+
+\[
+|A \cup B| = 300 + 300 - 250 = 350
+\]
+
+\[
+J(A,B) = \frac{250}{350} \approx 0.714
+\]
+
+Analogamente:
+
+- \(J(A,C) \approx 0.70\)  
+- \(J(B,C) \approx 0.73\)  
+
+👉 **Tutte le coppie superano ampiamente il threshold 0.4**,  
+nonostante 50 geni diversi per coppia.
+
+
+
 
 ## Weighted degree
 Nel file community_parameters.csv, il weighted degree di una comunità non descrive la sua coesione interna, ma il livello complessivo di interazione con le altre comunità.
