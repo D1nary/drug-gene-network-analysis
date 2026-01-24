@@ -188,7 +188,6 @@ def build_gene_cooccurrence_network(
     df: pd.DataFrame,
     min_drugs_per_gene: int = 3,
     max_drugs_per_gene_percentile: float = 95.0,
-    weight_threshold: int = 1,
 ) -> nx.Graph:
     """Create a weighted gene co-occurrence network via shared drugs."""
 
@@ -247,21 +246,12 @@ def build_gene_cooccurrence_network(
             key = (gene_a, gene_b)
             shared_drug_counts[key] = shared_drug_counts.get(key, 0) + 1
 
-    filtered_edges = 0
     for (gene_a, gene_b), weight in shared_drug_counts.items():
-        if weight_threshold is not None and weight < weight_threshold:
-            filtered_edges += 1
-            continue
         cooccurrence_graph.add_edge(
             f"Gene_{gene_a}",
             f"Gene_{gene_b}",
             weight=float(weight),
         )
-
-    if weight_threshold is not None and weight_threshold > 1:
-        isolated = [node for node, degree in cooccurrence_graph.degree() if degree == 0]
-        if isolated:
-            cooccurrence_graph.remove_nodes_from(isolated)
 
     cooccurrence_graph.graph.update(
         {
@@ -269,11 +259,10 @@ def build_gene_cooccurrence_network(
             "min_drugs_per_gene": min_drugs_per_gene,
             "max_drugs_per_gene_percentile": max_drugs_per_gene_percentile,
             "max_drugs_per_gene_value": percentile_value,
-            "cooccurrence_weight_threshold": weight_threshold,
             "original_gene_count": original_gene_count,
             "retained_gene_count": retained_gene_count,
             "removed_genes": removed_genes,
-            "filtered_edges": filtered_edges,
+            "filtered_edges": 0,
         }
     )
 

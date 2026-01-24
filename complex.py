@@ -173,7 +173,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cooccurrence-min-drugs-per-gene",
         type=int,
-        default=3,
+        default=1,
         help="Minimum number of drugs per gene to keep genes in co-occurrence.",
     )
     parser.add_argument(
@@ -186,18 +186,9 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--cooccurrence-weight-threshold",
-        type=int,
-        default=1,
-        help=(
-            "Minimum shared-drugs weight to keep co-occurrence edges "
-            "(1 disables filtering)."
-        ),
-    )
-    parser.add_argument(
         "--cooccurrence-community-min-size",
         type=int,
-        default=20,
+        default=15,
         help=(
             "Minimum community size required to build per-community "
             "co-occurrence networks."
@@ -371,11 +362,10 @@ def main() -> None:
                     community_df,
                     min_drugs_per_gene=args.cooccurrence_min_drugs_per_gene,
                     max_drugs_per_gene_percentile=args.cooccurrence_max_drugs_percentile,
-                    weight_threshold=args.cooccurrence_weight_threshold,
                 )
                 params = compute_cooccurrence_parameters(
                     cooccurrence_graph,
-                    weight_ge_threshold=args.cooccurrence_weight_threshold,
+                    weight_ge_threshold=1,
                 )
                 params["community_size"] = len(community)
                 community_parameters[label] = params

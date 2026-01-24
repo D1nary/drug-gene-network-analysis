@@ -312,38 +312,136 @@ Siccome, un arco tra due comunità esiste solo se esistono farmaci appartenenti 
 Il valore di weighted degree legato alla connessione di queste due comunità è di 12.99.
 
 # Co-occurence network
+Per analizzare la frequenza con cui coppie di geni compaiono insieme nei profili dei farmaci, è sato deciso di costruire una serie di cooccurence network.
+A causa dell'elevato costo computazionale relativo al calcolo di una co-occurence network globale, si è scelto di creare ed analizzare co-occurence network per ciascuna comunità precedentemente identificata attraverso la community analisys. Ci si è concentrati sulle comunità con una $\text{size} \geq 15$. Oltre al filtro appena citato, ne è stato applicato un altro in modo da rendere i dati di più facile interpretazione rimuovendo rumore e strutture quasi clique. In particolare sono stati rimossi dalle community geni super-frequenti ovvero i geni il cui numero di farmaci associati è maggiore del 95° percentile della distribuzione “farmaci per gene”. 
 
-A causa dell'elevato costo computazionale relativo al calcolo di una co-occurence network globale, si è scelto di creare ed analizzare co-occurence network per ciascuna comunità precedentemente identificata attraverso la community analisys. Ci si è concentrati sulle comunitò con una $\text{size} \geq 20$. Di seguito c
+Di seguito sono riportati i parametri delle cooccurence network trovate per ciascuna community:
 
 | Community ID | n_nodes | n_edges | density | component_count | giant_component_size | global_clustering_coefficient | community_size |
-|-------------|--------:|--------:|--------:|----------------:|---------------------:|------------------------------:|---------------:|
-| Community_5   | 357 | 47957 | 0.755 | 1 | 357 | 0.819 | 359 |
-| Community_20  | 17  | 136   | 1.000 | 1 | 17  | 1.000 | 22  |
-| Community_21  | 26  | 280   | 0.862 | 1 | 26  | 0.910 | 82  |
-| Community_22  | 77  | 2563  | 0.876 | 1 | 77  | 0.914 | 83  |
-| Community_54  | 4   | 6     | 1.000 | 1 | 4   | 1.000 | 22  |
-| Community_78  | 89  | 3394  | 0.867 | 1 | 89  | 0.921 | 32  |
-| Community_81  | 2   | 1     | 1.000 | 1 | 2   | 0.000 | 20  |
-| Community_188 | 82  | 2594  | 0.781 | 1 | 82  | 0.865 | 72  |
-| Community_192 | 34  | 427   | 0.761 | 1 | 34  | 0.872 | 39  |
-| Community_203 | 5   | 10    | 1.000 | 1 | 5   | 1.000 | 23  |
+| ------------ | ------- | ------- | ------- | --------------- | -------------------- | ----------------------------- | -------------- |
+| Community_5 | 357 | 47957 | 0.755 | 1 | 357 | 0.819 | 359 |
+| Community_13 | 166 | 13626 | 0.995 | 1 | 166 | 0.997 | 18 |
+| Community_20 | 17 | 136 | 1 | 1 | 17 | 1 | 22 |
+| Community_21 | 26 | 280 | 0.862 | 1 | 26 | 0.91 | 82 |
+| Community_22 | 77 | 2563 | 0.876 | 1 | 77 | 0.914 | 83 |
+| Community_54 | 4 | 6 | 1 | 1 | 4 | 1 | 22 |
+| Community_78 | 89 | 3394 | 0.867 | 1 | 89 | 0.921 | 32 |
+| Community_81 | 2 | 1 | 1 | 1 | 2 | 0 | 20 |
+| Community_97 | 215 | 22151 | 0.963 | 1 | 215 | 0.973 | 19 |
+| Community_135 | 86 | 2863 | 0.783 | 1 | 86 | 0.883 | 16 |
+| Community_188 | 82 | 2594 | 0.781 | 1 | 82 | 0.865 | 72 |
+| Community_192 | 34 | 427 | 0.761 | 1 | 34 | 0.872 | 39 |
+| Community_203 | 5 | 10 | 1 | 1 | 5 | 1 | 23 |
  
-Analizzando la densità, emergono tre regimi diversi:
-1. Density alta ma minore di 1 ($(\approx 0.85\text{--}0.92)$)
-Osservata nelle community medio grandi cioè con n_nods = 26, 77, 89 e clustering coefficient alto > 0.9. Queste sono reti quasi-clique ovvero un sottografo in in cui quasi tutte le coppie di nodi sono connesse ma non tutte. Biologicamente, siamo in presenza di un pathway dominamte in cui però i geni non sono sempre co-targettati indicando un pathway con ramificazioni.
+## component count e giant component size
+Tutte le co-occurrence networks gene-gene hanno component_count = 1
+Questo vale indipendentemente da:
+- numero di nodi (da 2 a 357),
+- densità (da ~0.75 a 1),
+- dimensione della community di farmaci di origine,
+- clustering coefficient.
+
+Questo indica che:
+- la rete gene-gene è completamente connessa;
+- ogni gene è raggiungibile da ogni altro gene tramite almeno un cammino;
+- non esistono sottogruppi genetici isolati all’interno della community.
+
+Coerente con la scelta metodologica di costruire le reti in comunità poichè aumenta la probabilità di profili genetici sovrapposti.
+
+Dal punto di vista biologico, component_count = 1 suggerisce che:
+
+- i geni all’interno di ciascuna community di farmaci partecipano a un sistema funzionale interconnesso;
+- i farmaci della community colpiscono moduli genetici fortemente sovrapposti, non pathway indipendenti;
+- non emergono sottosistemi genetici separati, ma un unico “blocco” funzionale.
+
+
+Inoltre, in tutte le le co-occurrence networks gene-gene analizzate si osserva che: giant_component_size = n_nodes ovvero la componente gigante coincide sempre con l’intera rete. In questo scenario, il concetto di giant component perde la sua usuale accezione di “sottostruttura dominante” e diventa equivalente alla rete stessa. Questo parametro, non aggiunge nuova informazione ma verifica di coerenza strutturale della rete e conferma dell’elevata connettività genetica interna alle community.
+
+## Density e global clustering coefficient
+La connettività globale della rete è già garantita (component conunt = 1) per costruzione. In questo caso la density ci dice quanto è ridondante la condivisione dei farmaci tra i geni della comunity
+
+Calcolata con la stessa formula del caso precedente
+Valorielevati
+assenza di reti sparse (<0.5)
+
+Possiamo identificare tre regimi di density. Tutti e tre comunque con valori elevati
+- regime 1:
+density∈[0.95,1.00]
+Tuttue o quasi tutte le coppie di geni sono collegate
+reti clique (o quasi)
+assenza quasi totale di eterogeneità dei profili
+geni colpiti sempre o quasi dagli stessi faramci
+forte ridondanza farmacologica
+moduli genetici sovrapposti indicativi di stesso pathway, stesso complesso proteico, repliche o contesti sperimentali simili
+
+- regime 2:
+density∈[0.75,0.90)
+Reti ancora pienamente connesse
+numero più o meno significativo di archi mancanti
+struttura meno clique leggermente più articolata della precedente
+farmaci con target più specifici o combinazioni diverse di bersagli. 
+geni coinvolti in processi distinti ma interconnessi
+
+
+
+---
+In questo caso tutte le co-occurrence networks hanno:
+- component_count = 1
+- giant_component_size = n_nodes
+
+👉 quindi:
+- la connettività globale è già garantita per costruzione,
+- la density non sta più dicendo se la rete è connessa o no.
+
+(anche una rete con density = 0.75 è topologicamente connessa quanto una con density = 1.0)
+
+La density in generale ci dice quanto la rete è “piena” di archi rispetto al massimo possibile. Se una rete è piena di archi vuol dire che i geni al suo interno sono collegati. Essendo che, nella cooccurence network coppie di geni sono collegati se condividono almeno un farmaco, avere una density alta significa che geni condividono stessi farmaci e quindi che la condivisione dei farmaci è ridondante tra i geni della community
+---
 
 ---
 Un pathway dominante è un insieme di geni che partecipano allo stesso meccanismo biologico e che vengono frequentemente colpiti insieme dai farmaci di una community. In questo caso i farmaci non agiscono su singoli geni isolati, ma interferiscono in modo coordinato con un processo biologico specifico, che rappresenta il bersaglio funzionale principale della community.
 ---
-2. Density più moderata ma comunque alta ($(\approx 0.75\text{--}0.78)$)
-Osservata nelle comunità più grandi (n_nodes = 34, 82, 357)
-Queste sono reti molto dense ma con una struttura interna ovvero possono essere presenti sottogruppi di geni che co-occorrono molto spesso tra loro ma meno frequentemente con altri geni della stessa community (cluster di nodi con alta densità interna collegati tra loro da archi più deboli)
 
-Community con 
+---
+Il global clustering coefficient misura la probabilità che due geni entrambi co-targettati con un terzo gene siano a loro volta co-targettati.
+In altre parole quantifica quanto la rete è localmente “triangolare”, quindi quanto è vicina a una struttura clique-like.
+---
 
-Questi valori rappresentano un’elevata coerenza funzionale piuttosto che una perdita di struttura. Questo regime riflette un meccanismo biologico complesso, caratterizzato da un nucleo di geni frequentemente co-targettati e da una periferia di geni coinvolti in modo selettivo da sottoinsiemi di farmaci. Le assenze di archi, responsabili della riduzione della density rispetto alle clique complete, costituiscono un segnale informativo di modularità e specializzazione funzionale, piuttosto che rumore sperimentale.
+Anche nel caso del clustering coefficient, siamo in presenza di valori molot alti
+- regime di clustering massimo
+ogni tripla di geni forma un triangolo
+struttura completamente ridondante
+- regime di clustering alto ma < 1 (≈ 0.88 – 0.95)
+struttura localmente compatta ma non completamente chiusa.
+moduli genetici coerenti ma articolati;
+pathway affini o parzialmente (anche se fortemente) sovrapposti;
+presenza di geni “ponte” che collegano sottosistemi funzionali vicin
 
+Siamo in presenza di un unico caso in cui il clustering = 0. Questa è una rete composta da 2 geni quindi assenza di trangoli per definizione
 
+## Wheight distribution and sparsity
 
+Community	n_nodes	median	mean	max	weight_eq_1_pct	weight_eq_2_pct
+Community_5	880	2,000	32,209	359	6,432	64,565
+Community_13	453	2,000	3,016	18	14,154	65,961
+Community_20	38	2,000	3,701	20	10,598	71,467
+Community_21	52	2,000	3,812	78	31,768	35,368
+Community_22	181	2,000	8,426	83	9,834	62,845
+Community_54	14	2,000	2,588	21	0,000	94,118
+Community_78	220	2,000	4,178	31	29,849	39,737
+Community_81	3	1,000	7,333	20	66,667	0,000
+Community_97	390	2,000	4,371	19	11,056	49,854
+Community_135	175	2,000	2,573	9	46,854	30,391
+Community_188	130	2,000	5,874	33	6,186	45,450
+Community_192	63	2,000	5,691	31	1,700	71,000
+Community_203	14	2,000	2,730	17	21,622	56,757
 
+Medianan pari a 2 in tutte le comunità ad eccezzione della comunità 81 la quale è un caso limite avendo 3 nodi
+Due o più farmaci che colpiscono la stessa coppia di geni può suggerire un legame funzionale reale e non un evento accidentale.
 
+In tutte le community si osserva mean > median ovvero distribuzioni asimmetriche (con una coda lunga a destra) con pochi archi aventi un grande peso e molti con peso ridotto. 
+Questo vuol dire ceh esistono coppie di geni estremamente co-targettate immerse in un co-targetting relativamente più moderato
+
+Biologicamente si ha la possibile presenta di geni "hub", pathway centrali o target riccorrenti in più screening
+
+Il valore max è molto 
