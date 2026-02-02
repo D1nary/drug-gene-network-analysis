@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import json
 from pathlib import Path
 import networkx as nx
 import pandas as pd
@@ -14,14 +16,21 @@ from network import (
     build_gene_cooccurrence_network,
     build_drug_similarity_network,
     build_community_network,
+    compute_community_normalized_laplacian_spectra,
+    build_target_inclusion_dag,
+    reduce_transitive_edges,
 )
 from saves import (
     compute_cooccurrence_parameters,
+    save_community_normalized_laplacian_spectra,
     save_community_data,
     save_community_members_by_density,
     save_community_profile_summary,
+    save_community_node_info,
     save_cooccurrence_parameters_by_community,
     save_network_parameters,
+    save_dag_parameters,
+    compute_dag_global_parameters,
 )
 from visualizzation import (
     visualize_random_drug_target_subgraph,
@@ -36,6 +45,8 @@ DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "ChG-InterDecagon_targets.csv.gz"
 RESULTS_DIR = PROJECT_ROOT / "results"
 COMMUNITY_DIR = RESULTS_DIR / "community"
 COMMUNITY_METRICS_DIR = COMMUNITY_DIR / "community_network_metrics"
+DAG_DIR = RESULTS_DIR / "dag"
+DAG_COMMUNITY_INFO_DIR = DAG_DIR / "communities"
 
 
 def read_targets(path: Path) -> pd.DataFrame:
@@ -127,6 +138,85 @@ def print_graph_sample(graph: nx.Graph) -> None:
     print("\n")
 
 
+def _parse_target_list(value: object) -> list[int] | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if isinstance(value, list):
+        return value
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            parsed = ast.literal_eval(text)
+        except (ValueError, SyntaxError):
+            return None
+    if not isinstance(parsed, list):
+        return None
+    return parsed
+
+
+def build_and_save_community_dag(
+    community_id: int,
+    community_dir: Path,
+    min_set_difference: int = 3,
+    min_depth: int = 1,
+    max_depth: int = 3,
+    remove_transitive_edges: bool = True,
+) -> None:
+    community_nodes_path = community_dir / "community_nodes.csv"
+    if not community_nodes_path.exists():
+        print(f"Community {community_id} has no node info at {community_nodes_path}")
+        return
+
+    df = pd.read_csv(community_nodes_path)
+    targets_by_node: dict[int, set[int]] = {}
+    for row in df.itertuples(index=False):
+        drug_id = getattr(row, "drug_id", None)
+        if pd.isna(drug_id):
+            continue
+        targets = _parse_target_list(getattr(row, "target_list", None))
+        if not targets:
+            continue
+        try:
+            node_id = int(drug_id)
+        except (TypeError, ValueError):
+            continue
+        targets_by_node[node_id] = {int(t) for t in targets}
+
+    if not targets_by_node:
+        print(f"Community {community_id} has no targets to build a DAG.")
+        return
+
+    dag = build_target_inclusion_dag(
+        targets_by_node,
+        min_set_difference=min_set_difference,
+    )
+    if remove_transitive_edges:
+        dag = reduce_transitive_edges(dag)
+
+    global_params = compute_dag_global_parameters(dag)
+    if global_params["max_depth"] < min_depth:
+        print(
+            f"Community {community_id} skipped: max_depth "
+            f"{global_params['max_depth']} < {min_depth}."
+        )
+        return
+    if global_params["max_depth"] > max_depth:
+        print(
+            f"Community {community_id} skipped: max_depth "
+            f"{global_params['max_depth']} > {max_depth}."
+        )
+        return
+
+    dag_paths = save_dag_parameters(dag, community_dir)
+    print(
+        f"Saved DAG parameters for community {community_id} to {dag_paths['global'].parent}"
+    )
+
+
 def parse_args() -> argparse.Namespace:
     # Build the CLI interface for selecting alternative dataset paths
     parser = argparse.ArgumentParser(
@@ -162,9 +252,9 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        default=["similarity", "community", "cooccurence"],
+        # default=["similarity", "community", "cooccurence"],
         # default=["similarity", "community"],
-        # default=["cooccurence"],
+        default=[],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
@@ -194,6 +284,22 @@ def parse_args() -> argparse.Namespace:
             "co-occurrence networks."
         ),
     )
+    parser.add_argument(
+        "--laplacian-community-min-size",
+        type=int,
+        default=4,
+        help="Minimum community size required to compute Laplacian spectra.",
+    )
+    parser.add_argument(
+        "--community-ids",
+        nargs="+",
+        type=int,
+        default=[21],
+        help=(
+            "Community IDs to save under results/dag/communities "
+            "(default: 21)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -207,6 +313,10 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "drug_gene").mkdir(parents=True, exist_ok=True)
     COMMUNITY_DIR.mkdir(parents=True, exist_ok=True)
+    DAG_COMMUNITY_INFO_DIR.mkdir(parents=True, exist_ok=True)
+
+    for community_id in sorted(set(args.community_ids)):
+        (DAG_COMMUNITY_INFO_DIR / str(community_id)).mkdir(parents=True, exist_ok=True)
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset not found at {data_path}")
@@ -298,6 +408,33 @@ def main() -> None:
         )
 
         save_community_data(community_graph, COMMUNITY_METRICS_DIR)
+        total_targets = int(df["Gene"].nunique())
+        for community_id in sorted(set(args.community_ids)):
+            if community_id < 0 or community_id >= community_count:
+                print(
+                    f"Community id {community_id} out of range "
+                    f"(available: 0..{community_count - 1})."
+                )
+                continue
+            members = communities[community_id]
+            output_path = save_community_node_info(
+                community_id,
+                members,
+                similarity_graph,
+                total_targets,
+                DAG_COMMUNITY_INFO_DIR / str(community_id),
+            )
+            print(f"Saved community {community_id} node info to {output_path}")
+        laplacian_spectra = compute_community_normalized_laplacian_spectra(
+            similarity_graph,
+            communities,
+            min_size=args.laplacian_community_min_size,
+        )
+        laplacian_path = save_community_normalized_laplacian_spectra(
+            laplacian_spectra,
+            RESULTS_DIR / "similarity" / "similarity_network",
+        )
+        print(f"Saved normalized Laplacian spectra to {laplacian_path}")
         if args.community_density_threshold is not None:
             drug_targets = {
                 node: data.get("targets", [])
@@ -374,6 +511,23 @@ def main() -> None:
                 community_parameters
             )
             print(f"Saved co-occurrence parameters to {cooccurrence_path}")
+
+    community_count = len(communities)
+    for community_id in sorted(set(args.community_ids)):
+        if community_count and (community_id < 0 or community_id >= community_count):
+            print(
+                f"Community id {community_id} out of range "
+                f"(available: 0..{community_count - 1})."
+            )
+            continue
+        build_and_save_community_dag(
+            community_id,
+            DAG_COMMUNITY_INFO_DIR / str(community_id),
+            min_set_difference=3,
+            min_depth=1,
+            max_depth=10,
+            remove_transitive_edges=True,
+        )
 
 
 

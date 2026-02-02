@@ -510,6 +510,22 @@ def save_community_data(
     }
 
 
+def save_community_normalized_laplacian_spectra(
+    spectra: dict[str, dict[str, object]],
+    output_dir: Path | str,
+) -> Path:
+    """Save normalized Laplacian matrices and eigen spectra per community."""
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "normalized_laplacian_spectra.json"
+
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(spectra, fh, indent=2, ensure_ascii=False)
+
+    return output_path
+
+
 def _community_density(size: int, internal_edge_count: int) -> float:
     max_internal_edges = size * (size - 1) / 2 if size > 1 else 0
     if max_internal_edges == 0:
@@ -639,3 +655,173 @@ def save_community_profile_summary(
         json.dump(payload, fh, indent=2, ensure_ascii=False)
 
     return output_path
+
+
+def save_community_node_info(
+    community_id: int,
+    members: list[str] | set[str] | tuple[str, ...],
+    similarity_graph: nx.Graph,
+    total_targets: int,
+    output_dir: Path | str,
+) -> Path:
+    """Save per-drug metadata for a single community into a CSV file."""
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    records = []
+    for member in sorted(members):
+        attrs = similarity_graph.nodes.get(member, {})
+        drug_id = attrs.get("original_id")
+        if drug_id is None and isinstance(member, str) and member.startswith("Drug_"):
+            try:
+                drug_id = int(member.replace("Drug_", ""))
+            except ValueError:
+                drug_id = None
+
+        drug_name = attrs.get("drug_name") or attrs.get("name")
+        targets = attrs.get("targets")
+        if targets is None:
+            target_list = None
+            n_target = None
+            target_coverage = None
+        else:
+            target_values = list(targets)
+            try:
+                target_values = sorted(target_values)
+            except TypeError:
+                pass
+            target_list = json.dumps(target_values)
+            n_target = len(targets)
+            target_coverage = (
+                float(n_target / total_targets) if total_targets > 0 else None
+            )
+
+        records.append(
+            {
+                "community_id": community_id,
+                "drug_id": drug_id,
+                "drug_name": drug_name,
+                "n_target": n_target,
+                "target_list": target_list,
+                "target_coverage": target_coverage,
+            }
+        )
+
+    df = pd.DataFrame(
+        records,
+        columns=[
+            "community_id",
+            "drug_id",
+            "drug_name",
+            "n_target",
+            "target_list",
+            "target_coverage",
+        ],
+    )
+    output_path = output_dir / "community_nodes.csv"
+    df.to_csv(output_path, index=False)
+    return output_path
+
+
+def compute_dag_global_parameters(graph: nx.DiGraph) -> dict[str, float | int]:
+    """Compute global metrics for a directed acyclic graph."""
+
+    n_nodes = graph.number_of_nodes()
+    n_edges = graph.number_of_edges()
+    density_dag = nx.density(graph) if n_nodes > 1 else 0.0
+
+    in_degrees = dict(graph.in_degree())
+    out_degrees = dict(graph.out_degree())
+    n_sources = sum(1 for degree in in_degrees.values() if degree == 0)
+    n_sinks = sum(1 for degree in out_degrees.values() if degree == 0)
+
+    if n_nodes == 0 or n_edges == 0:
+        max_depth = 0
+    else:
+        try:
+            # NetworkX renamed/relocated this in newer versions.
+            if hasattr(nx.algorithms.dag, "dag_longest_path_length"):
+                max_depth = nx.algorithms.dag.dag_longest_path_length(graph)
+            elif hasattr(nx.algorithms.dag, "longest_path_length"):
+                max_depth = nx.algorithms.dag.longest_path_length(graph)
+            else:
+                max_depth = nx.dag_longest_path_length(graph)
+        except nx.NetworkXUnfeasible:
+            max_depth = 0
+
+    return {
+        "n_nodes": n_nodes,
+        "n_edges": n_edges,
+        "density_dag": float(density_dag),
+        "n_sources": n_sources,
+        "n_sinks": n_sinks,
+        "max_depth": int(max_depth),
+    }
+
+
+def compute_dag_node_parameters(graph: nx.DiGraph) -> pd.DataFrame:
+    """Return DAG node metrics as a DataFrame."""
+
+    if graph.number_of_nodes() == 0:
+        return pd.DataFrame(
+            columns=[
+                "drug_id",
+                "in_degree",
+                "out_degree",
+                "degree_ratio",
+                "topological_level",
+            ]
+        )
+
+    levels: dict[object, int] = {}
+    try:
+        for node in nx.topological_sort(graph):
+            preds = list(graph.predecessors(node))
+            if not preds:
+                levels[node] = 0
+            else:
+                levels[node] = 1 + max(levels[pred] for pred in preds)
+    except nx.NetworkXUnfeasible:
+        levels = {node: 0 for node in graph.nodes()}
+
+    records = []
+    for node in graph.nodes():
+        in_degree = int(graph.in_degree(node))
+        out_degree = int(graph.out_degree(node))
+        degree_ratio = float(out_degree / (in_degree + 1))
+        records.append(
+            {
+                "drug_id": node,
+                "in_degree": in_degree,
+                "out_degree": out_degree,
+                "degree_ratio": degree_ratio,
+                "topological_level": int(levels.get(node, 0)),
+            }
+        )
+
+    return pd.DataFrame(records)
+
+
+def save_dag_parameters(
+    graph: nx.DiGraph,
+    output_dir: Path | str,
+) -> dict[str, Path]:
+    """Persist DAG global and node parameters under the given directory."""
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    global_params = compute_dag_global_parameters(graph)
+    global_path = output_dir / "dag_global_parameters.json"
+    with global_path.open("w", encoding="utf-8") as fh:
+        json.dump(global_params, fh, indent=2, ensure_ascii=False)
+
+    node_df = compute_dag_node_parameters(graph)
+    node_path = output_dir / "dag_node_parameters.csv"
+    node_df.to_csv(node_path, index=False)
+
+    return {
+        "global": global_path,
+        "node": node_path,
+    }

@@ -7,6 +7,7 @@ from __future__ import annotations
 from itertools import combinations
 import pandas as pd
 import networkx as nx
+import numpy as np
 
 
 def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
@@ -375,4 +376,82 @@ def build_community_network(
     community_graph.graph["modularity"] = modularity
 
     return community_graph, membership, communities
-#prova
+
+
+def build_target_inclusion_dag(
+    targets_by_node: dict[int | str, set[int]],
+    min_set_difference: int = 3,
+) -> nx.DiGraph:
+    """Build a DAG using target-set inclusion (A -> B if T(B) ⊂ T(A))."""
+
+    dag = nx.DiGraph()
+    if not targets_by_node:
+        return dag
+
+    for node, targets in targets_by_node.items():
+        dag.add_node(node, targets=sorted(targets))
+
+    items = sorted(
+        ((node, targets) for node, targets in targets_by_node.items()),
+        key=lambda item: len(item[1]),
+    )
+
+    for i, (node_small, targets_small) in enumerate(items):
+        size_small = len(targets_small)
+        for node_large, targets_large in items[i + 1 :]:
+            size_large = len(targets_large)
+            size_diff = size_large - size_small
+            if size_diff > min_set_difference:
+                break
+            if size_diff <= 0:
+                continue
+            if targets_small.issubset(targets_large):
+                dag.add_edge(node_large, node_small)
+
+    return dag
+
+
+def reduce_transitive_edges(dag: nx.DiGraph) -> nx.DiGraph:
+    """Return the transitive reduction of a DAG, preserving node attributes."""
+
+    if dag.number_of_edges() == 0:
+        return dag.copy()
+
+    reduced = nx.algorithms.dag.transitive_reduction(dag)
+    for node, data in dag.nodes(data=True):
+        if node in reduced:
+            reduced.nodes[node].update(data)
+    return reduced
+
+
+def compute_community_normalized_laplacian_spectra(
+    graph: nx.Graph,
+    communities: list[set[str]],
+    weight_attr: str = "weight",
+    min_size: int = 1,
+) -> dict[str, dict[str, object]]:
+    """Compute normalized Laplacian matrices and eigen spectra per community."""
+
+    spectra: dict[str, dict[str, object]] = {}
+    for idx, community in enumerate(communities):
+        label = f"Community_{idx}"
+        if not community or len(community) < min_size:
+            continue
+        subgraph = graph.subgraph(community)
+        nodes = sorted(subgraph.nodes())
+        if not nodes:
+            continue
+        laplacian = nx.normalized_laplacian_matrix(
+            subgraph,
+            nodelist=nodes,
+            weight=weight_attr,
+        ).toarray()
+        eigenvalues = np.linalg.eigvalsh(laplacian)
+        spectra[label] = {
+            "node_count": len(nodes),
+            "nodes": nodes,
+            "normalized_laplacian": laplacian.astype(float).tolist(),
+            "eigenvalues": eigenvalues.astype(float).tolist(),
+        }
+
+    return spectra

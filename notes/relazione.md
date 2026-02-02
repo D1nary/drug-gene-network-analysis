@@ -410,7 +410,8 @@ In altre parole quantifica quanto la rete è localmente “triangolare”, quind
 Anche nel caso del clustering coefficient, siamo in presenza di valori molot alti
 - regime di clustering massimo
 ogni tripla di geni forma un triangolo
-struttura completamente ridondante
+struttura completamente ridondanteGeneralmente, in tutte le community si osserva mean > median ovvero distribuzioni asimmetriche (con una coda lunga a destra) con pochi archi aventi un grande peso e molti con peso ridotto. In alcune (comunity 5) questa differenza tra mean e median è più marcata mentre in altre meno (community 20)
+Questo vuol dire che esistono coppie di geni estremamente co-targettate immerse in un co-targetting relativamente più moderato
 - regime di clustering alto ma < 1 (≈ 0.88 – 0.95)
 struttura localmente compatta ma non completamente chiusa.
 moduli genetici coerenti ma articolati;
@@ -439,9 +440,194 @@ Community_203	14	2,000	2,730	17	21,622	56,757
 Medianan pari a 2 in tutte le comunità ad eccezzione della comunità 81 la quale è un caso limite avendo 3 nodi
 Due o più farmaci che colpiscono la stessa coppia di geni può suggerire un legame funzionale reale e non un evento accidentale.
 
-In tutte le community si osserva mean > median ovvero distribuzioni asimmetriche (con una coda lunga a destra) con pochi archi aventi un grande peso e molti con peso ridotto. 
-Questo vuol dire ceh esistono coppie di geni estremamente co-targettate immerse in un co-targetting relativamente più moderato
+Generalmente, in tutte le community si osserva mean > median, indicativo di distribuzioni asimmetriche (con coda lunga a destra), caratterizzate dalla presenza di pochi archi con peso elevato e di molti archi con peso ridotto. In alcune community (ad esempio Community 5) questa differenza tra media e mediana è più marcata, mentre in altre risulta più contenuta (ad esempio Community 20). Ciò suggerisce la presenza di coppie di geni fortemente co-targettate, immerse in un contesto di co-targeting complessivamente più moderato.
 
 Biologicamente si ha la possibile presenta di geni "hub", pathway centrali o target riccorrenti in più screening
 
-Il valore max è molto 
+Il parametro max misura peso massimo osservato nella community ovvero il numero massimo di farmci condivise da una coppia di geni nella community ovvero un indice di quanto può essere forte il co-targetting in quella community.
+Molte community con valori elevati di max. 
+In tutte le reti esiste almeno una coppia di geni co-targettata da un numero alto di farmaci.
+Reti costituite da nuclei di co-targeting ridondandi
+
+I parametri weight_eq_1_pct e weight_eq_2_pct sono stati introdotti come informazioni aggiuntive e rappresentano rispettivamente la quota di archi gene–gene sostenuti da uno e da due farmaci. Si osserva che weight_eq_1_pct è sempre ben al di sotto del 50% (ad eccezione di casi patologici di dimensione molto ridotta), mentre weight_eq_2_pct risulta spesso la classe dominante (≈ 40–70%). Questo comportamento è coerente con una mediana dei pesi pari a due, che implica che almeno la metà degli archi presenti nelle co-occurrence networks sia sostenuta da due o più farmaci.
+
+
+---
+I parametri di centralità di nodo, quali closeness, betweenness e PageRank, non sono stati inclusi nell’analisi in quanto l’obiettivo è la caratterizzazione globale delle co-occurrence networks. Inoltre, l’elevata densità e la connettività completa delle reti renderebbero tali misure poco discriminanti in questo contesto.
+---
+
+# Spettral analisys
+The dug-drug similarity network was built with a threshold of...
+In modo da codificare la struttura di connettività interna di ciascuna community di farmaci sono state costruite le normalizzed Laplacian matrix e di esse, lo spettro degli eigenvalues è stato analizzato. 
+
+Sebbene, in una precedente analisi, siano stati calcolati parametri come density e clustering coefficient fornendo una prima caratterizzazione topologica delle community, l’analisi spettrale della Laplaciana normalizzata consente di valutare la coesione strutturale globale e l’eventuale presenza di sottostrutture modulari non rilevabili con le metriche appena citate. 
+
+La density, per esempio, è una caratterizzazaione globale indicante quanti archi sono presenti nella community. Infatti, due community con lo stesso valore di density, possono essere strutturalmente diverse (comunità quai-clique oppure costituita da due blocchi densi separati). In questo contesto, è difficile distinguere comunità realmetne omogenee da aggregazioni indotte dalla misura di similarità.
+
+Per analizzare la connectivity e la cohesivity delle reti, sono stati calcolati i Fiedler values ovveri il secondo eigenvalue più piccolo. Nella seguente tabella, sono riportati i Fiedler values per le comunità con size maggiore o uguale di 15.
+
+Community name	Size	Fiedler value
+Community_5	359	0.971
+Community_13	18	0.270
+Community_20	22	0.384
+Community_21	82	0.514
+Community_22	83	0.611
+Community_54	22	0.672
+Community_78	32	0.830
+Community_81	20	1.036
+Community_97	19	0.263
+Community_135	16	0.029
+Community_188	72	0.006
+Community_192	39	0.045
+Community_203	23	0.112
+
+Per effettuare un'analisi dei Fiedler value individuati, introduciamo le seguenti classi operative
+| Range λ₁      | Interpretazione strutturale                       |
+| ------------- | ------------------------------------------------- |
+| **λ₁ ≪ 0.1**  | Community **quasi separabile**, struttura fragile |
+| **0.1 – 0.4** | Modularità interna marcata                        |
+| **0.4 – 0.8** | Strutturalmente coesa con eterogeneità interna    |
+| **0.8 – 1.1** | Community **fortemente coesa**                    |
+| **> 1.1**     | Quasi-clique / struttura estremamente compatta    |
+
+Nel dataset, esistono, sia comunità spettralmente deoli ((es. Community 100, 135, 188)) sia comunità spettralmente molto forti con λ₁ ≈ 1 o maggiore. (Questo non sarebbe distinguibile usando solo density e clustering. inserire?)
+
+
+GRAFICO FIELDLER VALUE IN FUNZIONE DELLA SIZE?
+
+Dal grafico, si osserva che, per comunità più piccole, il Fiedler value può assumere valori sia piccoli che grandi identificando comunità sia comunità con una grande connettività che altre con connettività ineriore. Per quanto riguada comunità più grandi (size > 50), a parte un solo caso, esse risultano essere più connesse.
+
+Ricapitolando, la density ci da informazioni solo su quanti archi sono presenti e non come sono essi sono distribuiti o se sono presenti separazioni interne mentre il Fidelr value fornisce infomrazioni su quanto facile o costoso separare il grafo in due parte minimizzando il peso degli archi tagliati (tutorial “Algorithms for Graph Partitioning”). 
+Sulla base di questo, se la density è alta (molti archi nella rete) e valuenè alto (difficoltà a separare il grafo) vuol dire che siamo in presenza di una ridondanza reale poichè ci sono archi uniformemente distribuiti, nessun sottogruppo separabile, ogni nodo è connesso “bene” con tutti.
+Al contrario, se value è basso è "semplice" separare il grafo, siamo in presenza di una aggregazione artificiale ovvero una community che appare densa e compatta per costruzione matematica (similarità + threshold + algoritmo), ma che non rappresenta un insieme biologicamente omogeneo. Siamo in presenza di Due (o più) sottogruppi internamente molto densi e pochi archi tra i sottogruppi. 
+
+
+Nel ChG-InterDecagon questo succede quando Jaccard è permissiva su set grandi, farmaci condividono parte dei target ma appartengono a pathway diversi. 
+In questo caso il Louvain li mette insieme quindi la density resta alta ma spettralmente la community non regge
+
+
+
+Community name	Size	density	Fiedler value
+Community_5	357	0.755	0.971
+Community_13	166	0.995	0.270
+Community_20	17	1.000	0.384
+Community_21	26	0.862	0.514
+Community_22	77	0.876	0.611
+Community_54	4	1.000	0.672
+Community_78	89	0.867	0.830
+Community_81	2	1.000	1.036
+Community_97	215	0.963	0.263
+Community_135	86	0.783	0.029
+Community_188	82	0.781	0.006
+Community_192	34	0.761	0.045
+Community_203	5	1.000	0.112
+
+Riprendendo l'analisi delle sezioni precedenti, dato che tutte le community elencate hanno density alta (≈ ≥ 0.75), la discriminante reale è il Fiedler value. Possiamo dividere le comunità (size >= 15) in 3 gruppi diversi:
+
+Fiedler basso: λ₁ ≲ 0.1
+coesione globale debole, quasi separabili
+Di questo gruppo ne fanno parte le community 135, 188 e 192
+
+
+Fiedler intermedio: 0.1 < λ₁ < 0.7
+community dense ma strutturalmente eterogenee (community con una certa modularità interna)
+Di questo gruppo ne fanno parte le community 13, 20, 21, 22, 97 e 203
+Molte di queste sono comunità quasi-cliqie locali
+
+Fiedler alto: λ₁ ≳ 0.7
+community globalmente coese, ridondanza reale
+Di questo gruppo ne fanno parte le community 5, 78, 54 e 2 (banale matematicamente)
+
+In questo caso la community 5 precedentemente analizzata  non è un artefatto della Jaccard o del threshold, ma riflette una ridondanza reale dei profili target
+
+SPETTRO SOLO COMMUNITY 5? CONFRONTO CON COMUNITÀ NON CLIQUE?
+
+# DAG
+All'interno delle community, abbiamo farmaci simili per costruzione (Jaccard similarity). Un'informazione che le community non forniscono, sono delle relazioni di "generalità"/"specifità" all'interno di community con farmaci simili. 
+Se due farmaci sono somili all'interno della community, allora è prbalile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno). Le DAG costruite e analizzate di seguito (in particolare le loro orientation rule) vogliono analizzare proprio questo fatto. 
+
+## Community analizzata
+La seguente community è stata scelta per l'analisi perchè è una comunità informativa ovvero non banale (size piccola) non triviale (clique o quasi-clique) ma strutturamente eterogenea e biologicamente interpretabile nodo per nodo
+Quello che la segunete analisi vuole fare è capire che ruolo ha ogni farmaco dentro la community.
+
+Cerca comunità con:
+- size 30 ≤ size ≤ 150
+- density alta ma non satura: 0.7 ≤ density ≤ 0.9
+   - Questo significa:
+      - esiste coerenza interna
+      - ma non tutti sono simili a tutti
+      - quindi c’è eterogeneità strutturale reale
+- Clustering coefficient alto ma non estremo: 0.6 ≤ clustering ≤ 0.9
+   - Interpretazione:
+      - sottogruppi locali ben definiti
+      - possibilità di famiglie di farmaci o sottopercorsi biologici
+- Fiedler value non estremo (chiave!): Fiedler intermedio (né ≪ 0.1, né ≫ 0.8)
+   - Questo identifica comunità:
+      - ben connesse
+      - ma non rigidamente compatte
+     - con colli di bottiglia strutturali biologicamente interessanti
+     
+La migliore candidata per questa analisi è la community 21 la quale possiede i seguenti parametri:
+- size = 82
+- density ≈ 0.78
+- clustering ≈ 0.63
+- Fiedler ≈ 0.51
+
+## Orientation rule
+La DAG è stata costruita con la seguente orientation rule:
+
+- Si ordina per dimensione dei target. 
+- Si crea un arco dal set più grande al set più piccolo se il set piccolo è sottoinsieme del grande: A -> B se T(B) ⊂ T(A). 
+- C’è anche un vincolo sulla differenza di cardinalità: si considerano solo coppie con 0 < |T(A)| - |T(B)| <= min_set_difference (di default 3). 
+- Se la differenza è maggiore, il ciclo si interrompe per quel node_small.
+
+In questo modo:
+La regola  𝐴 → 𝐵 se  T(B)⊂T(A):
+- A = profilo più “generale” (include tutto ciò che fa B + extra)
+- B = profilo più “specifico” (un sottoinsieme del generale)
+
+Inoltre, il nodo viene creato, solo se Quindi A può avere al massimo 3 target in più rispetto a B. Questo è fondamentale per una rappresentazione gerarchica locale e per non perdere di interpretabilità biologica
+
+---
+Se A ha molti più target di B, le possibili cause sono indistinguibili:
+- A è stato testato in molte più condizioni
+- B è incompleto (missing data)
+- A ha effetti aspecifici / tossici
+- aggregazione di screening diversi
+- annotazioni ridondanti nel dataset
+
+Con una differenza piccola:
+- queste cause sono meno plausibili
+- o comunque più distinguibili
+---
+
+In questo modo analizziamo la rete individuando le seguenti tipologie di nodi:
+- Sorgenti: Farmaci massimali
+- Sink: Farmaci minimali
+- Nodi intermedi: varianti incrementali
+
+
+## DAG global parameters
++-------------+--------+
+| parametro   | valore |
++-------------+--------+
+| n_nodes     | 82     |
+| n_edges     | 681    |
+| density_dag | 0.103  |
+| n_sources   | 35     |
+| n_sinks     | 21     |
+| max_depth   | 6      |
++-------------+--------+
+
+Il valore di density osservato, suggerisce che la gerarchia di inclusione tra i nodi è presente ma non troppo fitta con una conseguente rappresentazione parziale delle relazioni di dominanza tra tutte le possibili. Questo è coerente con l'uso della regola di orientamento selettiva utilizzata , che tende a collegare tra loro solo profili di target molto simili in termini di dimensione. In altre parole, la density rappresenta una struttura interpretabile biologicamente senza indurre troppi collegamenti ridondanti o poco informativi.
+
+
+Il numero elevato di sources (circa il 43% dei nodi totali) è coerente con il vincolo imposto sulla differenza tra due insiemi "successivi" il quale limita fortemente la connessione tra insieme molto grandi e molto piccoli. Di conseguenza, molti nodi con set di target grandi non trovano sottoinsiemi “abbastanza vicini” e rimangono senza archi entranti, diventando sorgenti della DAG.
+
+Il numero più basso di sink, suggerisce una struttura a ventaglio più che a imbuto.
+
+Il valore di max_depth suggerisce l'esistenza di strutture a catena del tipo: T1​⊃T2​⊃T3​⊃T4​⊃T5​⊃T6​⊃T7​. Questo suggerisce la possibile presenza di processi di specializzazione progressiva da farmaci “broad-target” a farmaci sempre più selettivi coerenti con la natura del dataset (effetti condizione-specifici o versioni sperimentali dello stesso composto). 
+
+Analizzando il numero elevato di archi si può dire che molti farmaci differiscono per pochi geni e quindi spesso condividono un core comune. 
+
+I risultati ottenuti, sono fortemente influenzati dall'orentetion rule utilizzata. È quindi importante tenere conto delle proprietà introdotte da essa. Tra esse abbiamo la gerarchia locale (e non globale) imposta dal vincolo Δ∣T∣≤3 il quale produce molte gerarchie locali e molte sorgenti. La DAG risulta quindi essere composta da molte gerarchie locali indipendenti, ciascuna con la propria sorgente e pochi livelli di profondità (struttura a più alberi).

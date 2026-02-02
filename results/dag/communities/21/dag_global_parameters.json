@@ -1,0 +1,8 @@
+{
+  "n_nodes": 82,
+  "n_edges": 681,
+  "density_dag": 0.1025293586269196,
+  "n_sources": 35,
+  "n_sinks": 21,
+  "max_depth": 6
+}
