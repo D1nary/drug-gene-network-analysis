@@ -38,7 +38,7 @@ La Jaccard similarity indica che due farmaci risultano simili solo se condividon
 | retained_node_count  | 1,441     |
 | potential_edges      | 1,037,520 |
 
-Questo valore di threshold indica che un arco (drug–drug) è presente nella rete solo se la similarità tra due farmaci è ≥ 0.3. Essa è una soglia moderata non troppo permissiva ma nemmeno troppo stringente. Mantiene connessioni con similarità medio–bassa, quindi preserva una rete relativamente densa rispetto a soglie più stringenti. Genera una rete connessa ma non troppo, utile per il community detection. Riduce il rumore eliminando similarità assolutamente deboli. 
+Questo valore di threshold indica che un arco (drug–drug) è presente nella rete solo se la similarità tra due farmaci è ≥ 0.3. Essa è una soglia moderata non troppo permissiva ma nemmeno troppo stringente. Mantiene connessioni con similarità medio–bassa, quindi preserva una rete relativamente densa rispetto a soglie più stringenti. Genera una rete connessa ma non troppo, utile per il community detection riducendp il rumore ed eliminando similarità assolutamente deboli. 
 
 Siccome il numero di nodi originali (original_node_count) è 1774 e il numero di nodi "sopreavvisuti" (retained_node_count) è 1441, si osserva che, dopo il filtraggio, la rete conserva l'81,2% dei farmaci. Oltre 1400 farmaci sono connessi tra di loro significa, con questo threshold, il dataset contiene informazioni ridondanti sui target farmacologici
 
@@ -631,3 +631,74 @@ Il valore di max_depth suggerisce l'esistenza di strutture a catena del tipo: T1
 Analizzando il numero elevato di archi si può dire che molti farmaci differiscono per pochi geni e quindi spesso condividono un core comune. 
 
 I risultati ottenuti, sono fortemente influenzati dall'orentetion rule utilizzata. È quindi importante tenere conto delle proprietà introdotte da essa. Tra esse abbiamo la gerarchia locale (e non globale) imposta dal vincolo Δ∣T∣≤3 il quale produce molte gerarchie locali e molte sorgenti. La DAG risulta quindi essere composta da molte gerarchie locali indipendenti, ciascuna con la propria sorgente e pochi livelli di profondità (struttura a più alberi).
+
+## DAG node parameters
+I seguenti parametri sono stati calcolati per ciascun nodo:
+
+- in_degree: numero di archi entranti 
+- out_degree: numero di archi uscenti 
+- degree_ratio: out_degree / (in_degree + 1) 
+- topological_level: livello topologico (0 per sorgenti, cresce lungo i predecessori)
+
+
+
+Dai file salvati si mostra che:
+
+| Categoria grado | Nodi `in_degree` | Nodi `out_degree` |
+|---|---:|---:|
+| Tra 1 e 3 | 8 | 14 |
+| Uguale a 0 | 35 | 21 |
+| Maggiore di 5 | 39 | 47 |
+
+Ovvero, il 25% dei nodi ha in_degree = 0. Questi non sono sottoinsieme di nessun altro e quindi rappresentano i profili massimali. Questo faramci rappresentano una firma comune per molti altri farmaci diversi.
+
+39 farmaci hanno un in_degree > 5. Sono nodi contenuti in molti altri profili. Questi farmaci possono essere di varianti sperimetali o in condizioni differenti dello stesso composto. Proprio come accade per farmaci nel dataset ChG-InterDecagon.
+
+I nodi con outdegree alto rappresentano gli hub gerarchici mentre quelli con outdegree nullo sono nodi specifici che non contengono nessun altro. Di Questa ultima categoria ne fanno parte sia nodi che non si sono mai collegati ad altri (con nessun sottoinsieme) che i due nodi sink mostrati in giallo nel seguente grafico.
+
+Il degree ratio è stato calcolato come segue:
+$$
+\mathrm{degree\_ratio} = \frac{\mathrm{out\_degree}}{\mathrm{in\_degree} + 1}
+$$
+
+Esso è la misura dell'assimetria direzionale di un nodo. È inoltre un indice del ruolo gerarchico di un nodo poichè può distinguere un nodo in:
+- Ruolo dominante: degree ratio alto
+- Nodo di transizione: degree_ratio ≈ 1
+- Nodo foglia/ specializzato: degree ratio basso
+
+I valori calcolati sono:
+| Statistica (degree_ratio) | Valore |
+|---|---:|
+| Media ± SEM | 5.151 ± 1.181 |
+| Mediana ± MAD | 0.375 ± 0.375 |
+| Minimo | 0.000 |
+| Massimo | 31.000 |
+| % nodi con ratio < 1 | 73.171% |
+
+Si osserva una distribuzione fortemente sbilanciata in cui la maggiorparte dei nodi hanno un valore << 1 (nodi nodi foglia)
+Pochi nodi con valori molto alti dominano la media. 
+Osservando il grafico sottostante, si osserva la presenza di diversi ruoli:
+- Sorgenti isolate (viola in alto, degree_ratio = 0): Questi sono profili non ordinabili dall'orientation rule scelta
+- Sorgenti dominanti (viola in alto, degree_ratio ≫ 1): out degree elevato. Questi sono profili target massimali e quindi radici di grandi sotto gerarchie. 
+- Nodi intermedi di smistamento (blu scuro / azzurri centrali): questi hanno:
+    - in_degree > 0
+    - out_degree > 0
+    - degree_ratio ≈ 1
+Essi collegano grandi profili a profili più specifici
+- Sottoinsiemi condivisi (turchesi, livello medio-basso) e pre-foglie (verdi chiari, penultimo livello)
+Essi rappresentano i colli di bottiglia della gerarchia e sono gli ultimi passaggi prima della specializzazione massima.
+Di conseguenza con una degree ratio molto basso
+- Foglie pure (gialli in fondo, degree_ratio = 0). Essi sono i terminali veri della dag ovvero i profili massimamente specifici. Rappresentano farmaci molto selettivi o condizioni sperimentali estremamente specifiche.
+
+| Categoria                  | # nodi | % sul totale |
+| -------------------------- | -----: | -----------: |
+| **Sorgenti isolate**       |     18 |       21.95% |
+| **Sorgenti dominanti**     |     17 |       20.73% |
+| **Nodi intermedi**         |     37 |       45.12% |
+| **Sottoinsiemi condivisi** |      6 |        7.32% |
+| **Pre-foglie**             |      2 |        2.44% |
+| **Foglie**                 |      2 |        2.44% |
+| **Totale**                 | **82** |     **100%** |
+
+
+

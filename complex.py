@@ -35,6 +35,7 @@ from saves import (
 from visualizzation import (
     visualize_random_drug_target_subgraph,
     visualize_similarity_subgraph,
+    visualize_community_dag,
 )
 
 
@@ -196,6 +197,11 @@ def build_and_save_community_dag(
     )
     if remove_transitive_edges:
         dag = reduce_transitive_edges(dag)
+    visualize_community_dag(
+        dag,
+        community_id=community_id,
+        output_dir=community_dir / "graph",
+    )
 
     global_params = compute_dag_global_parameters(dag)
     if global_params["max_depth"] < min_depth:
@@ -252,9 +258,7 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        # default=["similarity", "community", "cooccurence"],
-        # default=["similarity", "community"],
-        default=[],
+        default=["similarity"],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
@@ -283,6 +287,12 @@ def parse_args() -> argparse.Namespace:
             "Minimum community size required to build per-community "
             "co-occurrence networks."
         ),
+    )
+    parser.add_argument(
+        "--similarity-min-degree",
+        type=int,
+        default=50,
+        help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
         "--laplacian-community-min-size",
@@ -316,7 +326,9 @@ def main() -> None:
     DAG_COMMUNITY_INFO_DIR.mkdir(parents=True, exist_ok=True)
 
     for community_id in sorted(set(args.community_ids)):
-        (DAG_COMMUNITY_INFO_DIR / str(community_id)).mkdir(parents=True, exist_ok=True)
+        community_dir = DAG_COMMUNITY_INFO_DIR / str(community_id)
+        community_dir.mkdir(parents=True, exist_ok=True)
+        (community_dir / "graph").mkdir(parents=True, exist_ok=True)
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset not found at {data_path}")
@@ -332,6 +344,11 @@ def main() -> None:
         graph,
         title="Mid-degree drug spotlight",
         focus="mid",
+    )
+    print(
+        "Mid-degree drug spotlight graph:",
+        f"{drug_spotlight.number_of_nodes()} nodes,",
+        f"{drug_spotlight.number_of_edges()} edges",
     )
     drug_param_paths = save_network_parameters(
         drug_spotlight,
@@ -371,6 +388,7 @@ def main() -> None:
                 similarity_graph,
                 max_nodes=500,
                 title="Random drug similarity snapshot",
+                min_degree=args.similarity_min_degree,
             )
             similarity_param_paths = save_network_parameters(
                 similarity_graph,

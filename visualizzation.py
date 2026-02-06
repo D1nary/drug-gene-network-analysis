@@ -135,6 +135,8 @@ def visualize_random_drug_target_subgraph(
     max_nodes: int = 200,
     title: Optional[str] = None,
     focus: str = "high",
+    drop_isolates: bool = True,
+    keep_largest_component: bool = True,
 ) -> nx.Graph:
     
     """Visualize a subgraph of the Drug–Target network filtered by drug degree.
@@ -170,10 +172,30 @@ def visualize_random_drug_target_subgraph(
         focus,
     )
 
+    if drop_isolates:
+        isolates = list(nx.isolates(subgraph))
+        if isolates:
+            subgraph.remove_nodes_from(isolates)
+
+    if keep_largest_component and subgraph.number_of_nodes() > 0:
+        components = list(nx.connected_components(subgraph))
+        if len(components) > 1:
+            largest = max(components, key=len)
+            subgraph = subgraph.subgraph(largest).copy()
+
+    sub_drugs = [
+        n for n, data in subgraph.nodes(data=True)
+        if data.get("bipartite") == "drug"
+    ]
+    sub_genes = [
+        n for n, data in subgraph.nodes(data=True)
+        if data.get("bipartite") == "gene"
+    ]
+
     # Force-directed layout for a more organic positioning.
     node_count = max(1, subgraph.number_of_nodes())
-    desired_spacing = 3.0 / math.sqrt(node_count)
-    pos = nx.spring_layout(subgraph, seed=42, k=desired_spacing, iterations=200)
+    desired_spacing = 5.0 / math.sqrt(node_count)
+    pos = nx.spring_layout(subgraph, seed=42, k=desired_spacing, iterations=300)
 
     # Redistribute gene nodes around their connected drug to avoid overlap
     gene_radius = 0.09
@@ -261,6 +283,7 @@ def visualize_similarity_subgraph(
     max_nodes: int = 500,
     title: Optional[str] = None,
     seed: Optional[int] = None,
+    min_degree: int = 1,
     community_membership: Optional[dict[str, str]] = None,
     output_dir: Optional[Path] = None,
     max_legend_items: int = 25,
@@ -304,7 +327,11 @@ def visualize_similarity_subgraph(
         raise ValueError("Similarity graph is empty; cannot visualize.")
 
     # Sort nodes before sampling so a fixed seed always yields the same subset
-    nodes = sorted(graph.nodes())
+    nodes = sorted(n for n in graph.nodes() if graph.degree[n] > min_degree)
+    if not nodes:
+        raise ValueError(
+            f"Similarity graph has no nodes with degree > {min_degree}; cannot visualize."
+        )
     sample_size = min(max_nodes, len(nodes))
     sampling_seed = seed if seed is not None else 42
     rng = random.Random()
@@ -593,3 +620,100 @@ def visualize_community_network(
     print(f"Community network saved to {output_path}")
 
     return community_graph
+
+
+def visualize_community_dag(
+    dag: nx.DiGraph,
+    community_id: int,
+    output_dir: Path,
+    title: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> Path:
+    """Render and save a DAG plot for a single community."""
+
+    if dag.number_of_nodes() == 0:
+        raise ValueError("DAG is empty; cannot visualize.")
+
+    levels: dict[object, int] = {}
+    is_dag = nx.is_directed_acyclic_graph(dag)
+    if is_dag:
+        for node in nx.topological_sort(dag):
+            preds = list(dag.predecessors(node))
+            levels[node] = 0 if not preds else 1 + max(levels[p] for p in preds)
+        groups: dict[int, list[object]] = {}
+        for node, level in levels.items():
+            groups.setdefault(level, []).append(node)
+
+        pos: dict[object, tuple[float, float]] = {}
+        for level, nodes in sorted(groups.items()):
+            nodes_sorted = sorted(nodes, key=lambda value: str(value))
+            width = max(1, len(nodes_sorted) - 1)
+            for idx, node in enumerate(nodes_sorted):
+                x = (idx - width / 2.0) * 1.6
+                y = -float(level) * 1.8
+                pos[node] = (x, y)
+    else:
+        layout_seed = seed if seed is not None else 42
+        pos = nx.spring_layout(dag, seed=layout_seed, k=1.2, iterations=200)
+        levels = {node: 0 for node in dag.nodes()}
+
+    out_degree = dict(dag.out_degree())
+    max_out = max(out_degree.values(), default=1) or 1
+    node_sizes = [
+        300 + 700 * (out_degree.get(node, 0) / max_out)
+        for node in dag.nodes()
+    ]
+    level_values = [levels.get(node, 0) for node in dag.nodes()]
+    edge_widths = [
+        0.8 + 1.2 * float(data.get("set_difference", 1))
+        for _, _, data in dag.edges(data=True)
+    ]
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    nx.draw_networkx_edges(
+        dag,
+        pos,
+        ax=ax,
+        width=edge_widths if edge_widths else 0.8,
+        alpha=0.5,
+        arrows=True,
+        arrowsize=14,
+        arrowstyle="-|>",
+        edge_color="gray",
+        connectionstyle="arc3,rad=0.04",
+    )
+    nx.draw_networkx_nodes(
+        dag,
+        pos,
+        ax=ax,
+        node_size=node_sizes,
+        node_color=level_values,
+        cmap="viridis",
+        alpha=0.95,
+        edgecolors="black",
+        linewidths=0.6,
+    )
+    nx.draw_networkx_labels(
+        dag,
+        pos,
+        ax=ax,
+        labels={node: str(node) for node in dag.nodes()},
+        font_size=7,
+    )
+
+    if title is None:
+        title = (
+            f"Community {community_id} DAG "
+            f"({dag.number_of_nodes()} nodes, {dag.number_of_edges()} edges)"
+        )
+    ax.set_title(title)
+    ax.axis("off")
+    fig.tight_layout()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"community_{community_id}_dag.png"
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    print(f"Community {community_id} DAG graph saved to {output_path}")
+    return output_path
