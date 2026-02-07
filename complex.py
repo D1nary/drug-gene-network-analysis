@@ -258,7 +258,7 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        default=["similarity"],
+        default=["similarity", "community"],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
@@ -291,7 +291,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--similarity-min-degree",
         type=int,
-        default=50,
+        default=0,
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
@@ -388,6 +388,7 @@ def main() -> None:
                 similarity_graph,
                 max_nodes=500,
                 title="Random drug similarity snapshot",
+                seed=snapshot_seed,
                 min_degree=args.similarity_min_degree,
             )
             similarity_param_paths = save_network_parameters(
@@ -489,6 +490,7 @@ def main() -> None:
                 max_nodes=similarity_snapshot.number_of_nodes(),
                 title="Drug similarity snapshot by community",
                 seed=snapshot_seed,
+                min_degree=-1,
                 community_membership=membership,
                 output_dir=COMMUNITY_DIR,
                 max_legend_items=20,
