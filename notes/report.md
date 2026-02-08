@@ -177,7 +177,7 @@ Le singole comunità vengono analizzate nel file community_parameters.csv. Il fi
 - weighted degree: Somma dei pesi degli archi incidenti su un nodo
 - clustering coefficient: Grado di chiusura locale delle comunità
 
-Nella seguente tabella, per motivi di visualizzazione, sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10.
+Nella seguente tabella sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10.
 
 
 community_id  size degree weighted_degree clustering_coefficient density
@@ -218,4 +218,98 @@ size < 5        219   83.91
 size > 100      1     0.38   
 label: Percentuali delle size delle community
 
+### Density
+La densità misura quanto i farmaci all’interno di una comunità siano effettivamente simili tra loro poichè queste ultime, benchè individuate dal metodo Louvian, possono essere tenute insieme da similarità parziali. In questo contensto la density aiuta a distinguere quali comunità sono realtente omogenee da quelle i cui componenti condividono solo alcuni bersagli.
 
+$$
+\text{density} = \frac{E_{\text{int}}}{\frac{n(n-1)}{2}}
+$$
+dove:
+
+- density: frazione di connessioni interne presenti rispetto al massimo possibile nella comunità.
+- E_int: numero di archi interni alla comunità (solo tra nodi della stessa comunità).
+- n: numero di nodi nella comunità (size).
+- n(n-1)/2: numero massimo di archi possibili in una comunità non orientata senza self‑loop.
+
+Nei moduli piccoli, il numero di connessioni possibili è molto limitato, infatti basta che pochi nodi siano tutti connessi tra loro perché la density risulti elevata, spesso prossima a 1. Questo riflette una similarità molto forte tra i farmaci del gruppo (ad esempio condivisione quasi completa dei target), ma tali valori sono poco robusti dal punto di vista statistico, perché fortemente influenzati dal basso numero di nodi. Per questo sono stati rimossi dall'analisi considerando solo comunità con size maggiore o uguale di 10.
+
+Dai dati riportati si osserva che comunità medio-grandi, presentano valori di densità variabile. Analizzando le comunità  con size compresa tra 39 e 83 si osservano densità molto diverse. Ovvero comprese tra 0.324 e 0.913. 
+Le cause di questo comportamento possono essere sia matematiche che biologiche. 
+
+Le cause matematiche sono da attribuirsi a come viene calcolata la density (formula precedente). Dal momento che il numero di possibili connessioni interne aumenta quadraticamente con la dimensione della comunità, anche piccole variazioni nei profili dei nodi tendono ad accumularsi in un numero crescente di archi mancanti. Questo effetto è amplificato nelle comunità più grandi, dove l’elevato numero di confronti tra profili rende più probabile l’emergere di differenze, riflettendosi in una maggiore variabilità dei valori di densità.
+
+Inoltre, la presenza o l'assenza di un arco dipende da una soglia (0.4). Quindi, se due nodi sono appena sotto la soglia l'arco nella similarity network è assente mentre, se la similarity è appena sopra la soglia, l'arco è presente. Questo introduce variabilità artificiale e maggiore dispersione dei peorfili di densità. 
+
+Da un punto di vista biologico, comunità grandi spesso aggregano famiglie farmacologiche ampie, pathway complessi o target parzialmente sovrapposti creando, di conseguenza cluster di più grandi dimensioni ma non completamente connessi.
+
+Per le comunità di dimensione più contenuta (size compresa tra 10 e 32), si osserva in generale una densità elevata, con la maggior parte dei valori compresa tra ~0.7 e ~1.0. Sono tuttavia presenti alcune eccezioni con densità più moderata o bassa, come Community_135 (0.425), Community_203 (0.482) e Community_100 (0.346).
+
+#### Comunità clique
+
+Nella rete sono presenti due comunità quasi-clique. La prima, è la comunità con il maggior numero di elementi. Essa presenta le seguenti caratteristiche:
+
+- density: 0.999 
+- size: 359
+- unique_profiles: 120
+- shared_profiles: 81
+- most_frequent_profile: 
+   - drug_count: 125
+   - gene_count: 158
+   
+Quindi più di un terzo dei componenti della comunità condivide lo stesso esatto insieme di geni. Questo implica che la Jaccard similarity è J = 1 per tutte le coppie di farmaci che condividono lo stesso profilo e J ≈ 1 per le coppie di nodi che differiscono tra loro per pochi geni. Di conseguenza il sottografo della comunità, ovvero il grafo contenente i nodi della comunità e tutti gli archi di similarità compresi, risulta essere quasi completamente connesso producendo density quasi unitaria.
+
+Uno delle possibili cause di questo valore alto di density per una comunity cosi grande, può essere che la Jaccard diventa molto permissiva quando i set sono grandi e l'intersezione tra due set è molto ampia. Infatti avendo set di grandi dimensioni, anche con decine di geni diversi, la similarità resta alta. Avendo poi un threshold sufficientemente permissivo, come nel nostro caso, il valore di $E_{\text{int}} \approx \frac{n(n-1)}{2}$ con conseguente density $\approx 1$.
+
+Un'ulteriore causa del valore quasi unitario di questa community, come accennato precedentemente, potrebbe provenire dalla natura intrinseca del dataset. Infatti esso, aggregando screening diversi producendo il risultato che, farmaci testati negli stessi screening sugli stessi pannelli genici con risultati simili diventano vettorialmente indistinguibili. Questo produce sottografi altamente densi nella rete di similarità.
+
+Un'ulteriore causa del valore quasi unitario della density di questa community, può provenire dalla natura intrinseca del dataset. Esso non aggrega solo informazioni provenienti da fonti diverse (screening reali, sperimentali, prodotti computazionalmente) ma anche informazioni di uno stesso composto provenienti da screening diversi. Questo, unito al fatto che gli ID dei farmaci all'interno del dataset non distinguono il contesto sperimentale in cui sono stati prodotti i dati, può far si di generare farmaci con profili identici o quasi.
+
+Senza nessuna ulteriore analisi, questa comunità rappresenta una famiglia di farmaci con meccanismo d'azione quali identico oppure il targetting di un grande pathway.
+
+Sono presenti altre comunità con density unitaria per le quali può essere applicato lo stesso ragionamento appena fatto. Unito a questo fatto c'è da considerare che sono presenti clique banali come accade per la comunità 20. Essa continene 20 farmaci di cui 19 con lo stesso identico profilo composto da soli due farmaci. Questa rappresenta un clique più banale del precedente poichè il profilo è piccolissimo ed è replicato perfettamente.
+
+
+### Clustering coefficient
+Per ciascuna comunity, è stato calcolato il clustering coefficient:
+
+community_id   size  density  clustering_coefficient
+Community_5    359   1.000    0.903
+Community_13   18    0.791    0.000
+Community_20   22    0.792    0.593
+Community_21   82    0.778    0.631
+Community_22   83    0.913    0.851
+Community_53   10    0.733    0.000
+Community_54   22    0.745    0.574
+Community_58   11    1.000    0.000
+Community_59   10    0.889    0.000
+Community_78   32    0.905    0.653
+Community_81   20    1.000    0.964
+Community_97   19    0.754    0.000
+Community_100  13    0.346    0.000
+Community_109  13    1.000    0.000
+Community_127  14    0.604    0.000
+Community_135  16    0.425    0.000
+Community_187  10    1.000    0.000
+Community_188  72    0.324    0.616
+Community_192  39    0.601    0.706
+Community_203  23    0.482    0.513
+
+
+Si osservano diversi regimi di clustering coefficinet riassumibili in due: Clustering coefficient alto o moderatamente alto e clustering coefficient uguale a 0. Considerando il caso dei valori moderatamente elevati, si può dire che tali comunità  non presentano una struttura lineare o “a catena”, in cui i farmaci risultano simili solo a pochi vicini immediati, ma piuttosto costituiscono moduli fortemente coesi. Cioè, se un farmaco è simile ad altri farmaci all'interno della comuintà, è molto porbabile che, per come è stata definita la similarità e per la soglia utilizzata, esso sia siamile ad altri componenti della stessa.
+
+Le community 20, 21, 22, 54, 78 presentano valori compresi tra:
+| Size  | Density   | Clustering |
+| ----- | --------- | ---------- |
+| 22–83 | 0.74–0.91 | 0.57–0.85  |
+
+quindi con densità alta ma minore di 1 e clustering coefficient alto. Da questi dati si può dire che non tutti i farmaci sono simili agli altri ma esistono sottogruppi molto coerenti all'interno della comunità. In altre parole, la comunità è composta da blocchi locali (blocchi di traingoli) fortemente connessi. Biologicamente, è possibile la presenza di famiglie farmacologiche in cui esiste un nucleo di target comuni ed in cui ogni farmaco può introdurre variazioni marginali sul profilo.
+
+Sono presenti inoltre, comunità con bassa density e clustering moderato
+
+Tra le comunità con una density più bassa abbiamo:
+| Community | Size | Density | Clustering |
+| --------- | ---- | ------- | ---------- |
+| 188       | 72   | 0.324   | 0.616      |
+| 203       | 23   | 0.482   | 0.513      |
+
+Queste mostrano poche connessioni globali ma connessioni locali ben strutturate. In altre parole, la comunità non è un blocco compatto ma un insieme di cluster locali collegati indirettamente.

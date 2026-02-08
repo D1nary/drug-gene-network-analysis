@@ -187,7 +187,7 @@ Le cause matematiche sono da attribuirsi a come viene calcolata la density (form
 
 Inoltre, la presenza o l'assenza di un arco dipende da una soglia (0.4). Quindi, se due nodi sono appena sotto la soglia l'arco nella similarity network è assente mentre, se la similarity è appena sopra la soglia, l'arco è presente. Questo introduce variabilità artificiale e maggiore dispersione dei peorfili di densità. 
 
-Da un punto di vista biologico, comunità grandi spesso aggregano famiglie farmacologiche ampie, pathway complessi o target parzialmente sovrapposti. Di conseguenza vengono creati cluster di più grandi dimensioni ma non completamente connessi.
+Da un punto di vista biologico, comunità grandi spesso aggregano famiglie farmacologiche ampie, pathway complessi o target parzialmente sovrapposti creando, di conseguenza cluster di più grandi dimensioni ma non completamente connessi.
 
 Per le comunità di dimensione più contenuta (size compresa tra 16 e 32), si osserva in generale una densità mediamente elevata, con valori tipicamente compresi tra ~0.6 e ~0.9, e solo rare eccezioni con densità più bassa (es. Community_135 con density = 0.425).
 
