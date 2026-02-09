@@ -274,22 +274,22 @@ Per ciascuna comunity, è stato calcolato il clustering coefficient:
 
 community_id   size  density  clustering_coefficient
 Community_5    359   1.000    0.903
-Community_13   18    0.791    0.000
+Community_13   18    0.791    0.746
 Community_20   22    0.792    0.593
 Community_21   82    0.778    0.631
 Community_22   83    0.913    0.851
-Community_53   10    0.733    0.000
+Community_53   10    0.733    0.660
 Community_54   22    0.745    0.574
-Community_58   11    1.000    0.000
-Community_59   10    0.889    0.000
+Community_58   11    1.000    0.831
+Community_59   10    0.889    0.629
 Community_78   32    0.905    0.653
 Community_81   20    1.000    0.964
-Community_97   19    0.754    0.000
-Community_100  13    0.346    0.000
-Community_109  13    1.000    0.000
-Community_127  14    0.604    0.000
-Community_135  16    0.425    0.000
-Community_187  10    1.000    0.000
+Community_97   19    0.754    0.553
+Community_100  13    0.346    0.442
+Community_109  13    1.000    0.787
+Community_127  14    0.604    0.671
+Community_135  16    0.425    0.596
+Community_187  10    1.000    0.660
 Community_188  72    0.324    0.616
 Community_192  39    0.601    0.706
 Community_203  23    0.482    0.513
@@ -297,19 +297,113 @@ Community_203  23    0.482    0.513
 
 Si osservano diversi regimi di clustering coefficinet riassumibili in due: Clustering coefficient alto o moderatamente alto e clustering coefficient uguale a 0. Considerando il caso dei valori moderatamente elevati, si può dire che tali comunità  non presentano una struttura lineare o “a catena”, in cui i farmaci risultano simili solo a pochi vicini immediati, ma piuttosto costituiscono moduli fortemente coesi. Cioè, se un farmaco è simile ad altri farmaci all'interno della comuintà, è molto porbabile che, per come è stata definita la similarità e per la soglia utilizzata, esso sia siamile ad altri componenti della stessa.
 
-Le community 20, 21, 22, 54, 78 presentano valori compresi tra:
-| Size  | Density   | Clustering |
-| ----- | --------- | ---------- |
-| 22–83 | 0.74–0.91 | 0.57–0.85  |
+Le community 13, 20, 21, 22, 53, 54, 59, 78, 97 presentano valori compresi tra::
+| Size  | Density     | Clustering  |
+| ----- | ----------- | ----------- |
+| 10–83 | 0.733–0.913 | 0.553–0.851 |
 
-quindi con densità alta ma minore di 1 e clustering coefficient alto. Da questi dati si può dire che non tutti i farmaci sono simili agli altri ma esistono sottogruppi molto coerenti all'interno della comunità. In altre parole, la comunità è composta da blocchi locali (blocchi di traingoli) fortemente connessi. Biologicamente, è possibile la presenza di famiglie farmacologiche in cui esiste un nucleo di target comuni ed in cui ogni farmaco può introdurre variazioni marginali sul profilo.
+quindi con densità alta ma minore di 1 e clustering moderatamente alto o alto. Da questi dati si può dire che non tutti i farmaci sono simili agli altri ma esistono sottogruppi molto coerenti all'interno della comunità. Biologicamente, è possibile la presenza di famiglie farmacologiche in cui esiste un nucleo di target comuni ed in cui ogni farmaco può introdurre variazioni marginali sul profilo.
 
 Sono presenti inoltre, comunità con bassa density e clustering moderato
 
 Tra le comunità con una density più bassa abbiamo:
-| Community | Size | Density | Clustering |
-| --------- | ---- | ------- | ---------- |
-| 188       | 72   | 0.324   | 0.616      |
-| 203       | 23   | 0.482   | 0.513      |
+| Community     | Size | Density | Clustering |
+| ------------- | ---- | ------- | ---------- |
+| Community_100 | 13   | 0.346   | 0.442      |
+| Community_135 | 16   | 0.425   | 0.596      |
+| Community_188 | 72   | 0.324   | 0.616      |
+| Community_203 | 23   | 0.482   | 0.513      |
 
-Queste mostrano poche connessioni globali ma connessioni locali ben strutturate. In altre parole, la comunità non è un blocco compatto ma un insieme di cluster locali collegati indirettamente.
+Queste mostrano poche connessioni globali ma connessioni locali ben strutturate evidenziando il fatto che la comunità non è un blocco compatto ma un insieme di cluster locali collegati indirettamente.
+
+Un'ultimo caso che si può notare dalla tabella precedente sono comunità con density $\approx 1$ e clustering alto. 
+
+| Community     | Size | Density | Clustering |
+| ------------- | ---- | ------- | ---------- |
+| Community_5   | 359  | 1.000   | 0.903      |
+| Community_58  | 11   | 1.000   | 0.831      |
+| Community_81  | 20   | 1.000   | 0.964      |
+| Community_109 | 13   | 1.000   | 0.787      |
+| Community_187 | 10   | 1.000   | 0.660      |
+
+In queste comunità il clustering coefficient non aggiunge nuova informazione rispetto alla density, ma rafforza l’evidenza di omogeneità estrema.
+
+## Weighted degree
+Per descrivere il livello complessivo di interazione di una comunità con le altre è stato calcolato, il weighed degree. Esso è calcolato come la somma dei pesi degli archi inter-comunità (similarità Jaccard). 
+
+Solo le comunità 23 e 78 risultano essere connesse tra di loro con un $\text{weighted degree} = 12.99$.
+
+Siccome, un arco tra due comunità esiste solo se esistono farmaci appartenenti a comunità diverse ma connessi e che quindi condividono una porzione significativa di target genici (Jaccard maggiore uguale a 0.4), le due comunità rappresentano moduli farmacologici distinti ma non indipendenti. I farmaci "ponte" che connettono le due comunità possono agire su pathway diversi ma comunque interconnessi attraverso geni chiave.
+
+Il valore di weighted degree legato alla connessione di queste due comunità è di 12.99.
+
+# Co-occurence network
+Per analizzare la frequenza con cui coppie di geni compaiono insieme nei profili dei farmaci, è sato deciso di costruire una serie di cooccurence network.
+A causa dell'elevato costo computazionale relativo al calcolo di una co-occurence network globale, si è scelto di creare ed analizzare co-occurence network per ciascuna comunità precedentemente identificata attraverso la community analisys. Ci si è concentrati sulle comunità con una $\text{size} \geq 15$. Oltre al filtro appena citato, ne è stato applicato un altro in modo da rendere i dati di più facile interpretazione rimuovendo rumore e strutture quasi clique. In particolare sono stati rimossi dalle community geni super-frequenti ovvero i geni il cui numero di farmaci associati è maggiore del 95° percentile della distribuzione “farmaci per gene”. 
+
+Di seguito sono riportati i parametri delle cooccurence network trovate per ciascuna community:
+
+| Community ID | n_nodes | n_edges | density | component_count | giant_component_size | global_clustering_coefficient | community_size |
+| ------------ | ------- | ------- | ------- | --------------- | -------------------- | ----------------------------- | -------------- |
+| Community_5 | 357 | 47957 | 0.755 | 1 | 357 | 0.819 | 359 |
+| Community_13 | 166 | 13626 | 0.995 | 1 | 166 | 0.997 | 18 |
+| Community_20 | 17 | 136 | 1 | 1 | 17 | 1 | 22 |
+| Community_21 | 26 | 280 | 0.862 | 1 | 26 | 0.91 | 82 |
+| Community_22 | 77 | 2563 | 0.876 | 1 | 77 | 0.914 | 83 |
+| Community_54 | 4 | 6 | 1 | 1 | 4 | 1 | 22 |
+| Community_78 | 89 | 3394 | 0.867 | 1 | 89 | 0.921 | 32 |
+| Community_81 | 2 | 1 | 1 | 1 | 2 | 0 | 20 |
+| Community_97 | 215 | 22151 | 0.963 | 1 | 215 | 0.973 | 19 |
+| Community_135 | 86 | 2863 | 0.783 | 1 | 86 | 0.883 | 16 |
+| Community_188 | 82 | 2594 | 0.781 | 1 | 82 | 0.865 | 72 |
+| Community_192 | 34 | 427 | 0.761 | 1 | 34 | 0.872 | 39 |
+| Community_203 | 5 | 10 | 1 | 1 | 5 | 1 | 23 |
+label: cooccurence network data
+
+## component count e giant component size
+Tutte le co-occurrence networks gene-gene hanno component count = 1. Questo vale indipendentemente dal numero di nodi (da 2 a 357), dalla densità (da ~0.75 a 1), dalla dimensione della community e dal clustering coefficient. Questo sta ad indicare che non esistono sottogruppi genetici isolati all’interno della community ovvero che la rete gene-gene è completamente connessa. In questo contesto, ogni gene è raggiungibile da ogni altro gene tramite almeno un cammino. 
+
+Sempre tenendo conto dei limiti imopsti dall'analisi e dalla natura instrinseca del dataset (discussa prima), da un punto di vista biologico, un valore di component count di 1 suggerische che i geni all'interno di ciascuna community partecipano ad un sistema funzionale interconnesso. Non emergono sottoinsiemi genetici separati maun unico blocco funzionale.
+
+Un dettaglio che si può notare dai risultati ottenuti è che in tutte le co-occurence network, la giannt component coincide con le dimensioni dell'intera rete. In questo scenario, il concetto di giant component perde la sua usuale accezione di “sottostruttura dominante” e diventa equivalente alla rete stessa.
+
+## Density e global clustering coefficient
+### density
+Siccome la connettività globale della rete è già garantita (component conunt = 1) per costruzione, in questo caso la density ci dice quanto è ridondante la condivisione dei farmaci tra i geni della comunity.
+
+La density, calcolata con la formula vista in precedenza, presenta valori elevati in quasi tutti i casi ovvero si ha assenza di reti sparse (density < 0.5). Possiamo identificare tre regimi diversi benchè tutti con valori elevati:
+
+Nel primo regime di density, si hanno valori [0.95,1.00]. In questo caso siamo in assenza quasi totale di eterogeneità dei profili in cui tutte o quasi tutte le coppie di geni sono collegate (reti clique o quasi). Si ha una forte ridondanza farmacologica in cui i geni sono colpiti, nella maggioranza dei casi, dagli stessi farmaci (forte ridondanza farmacologica).
+
+Nel seconod, la density compresa tra [0.75,0.90). Siamo in presenza di reti ancora pienamente connesse però con un numero più o meno significativo di archi mancanti. In queste strutture, meno clique e più articolate delle precedenti, ci possono essere geni coinvolti in processi distinti ma indirettamente interconnessi
+
+### clustering coefficient
+Anche nel caso del clustering coefficient, siamo in presenza di valori molot alti. Possiamo distinguere due regimi: valori massimi e valori alti ma < 1.
+Nel primo caso siamo in presenza di strutture totalmente ridondanti geneticamente in cui ogni tripla forma forma un traingolo. 
+Nel secondo caso (≈ 0.88 – 0.95) abbiamo strutture non completamente chiuse con moduli genetici più articolati rispetto al caso precedente con la presenza di geni ponte che collegano sottoinsiemi funzionali diversi. 
+
+È presente una community con clustering coefficient = 0. Questa è una rete composta da 2 geni quindi assenza di trangoli per definizione.
+
+## Wheight distribution and sparsity
+
+Community	n_nodes	median	mean	max	weight_eq_1_pct	weight_eq_2_pct
+Community_5	880	2,000	32,209	359	6,432	64,565
+Community_13	453	2,000	3,016	18	14,154	65,961
+Community_20	38	2,000	3,701	20	10,598	71,467
+Community_21	52	2,000	3,812	78	31,768	35,368
+Community_22	181	2,000	8,426	83	9,834	62,845
+Community_54	14	2,000	2,588	21	0,000	94,118
+Community_78	220	2,000	4,178	31	29,849	39,737
+Community_81	3	1,000	7,333	20	66,667	0,000
+Community_97	390	2,000	4,371	19	11,056	49,854
+Community_135	175	2,000	2,573	9	46,854	30,391
+Community_188	130	2,000	5,874	33	6,186	45,450
+Community_192	63	2,000	5,691	31	1,700	71,000
+Community_203	14	2,000	2,730	17	21,622	56,757
+label: cooccurence network weight distribution and sparsity
+
+Osservando i dati in tabella si osserva che la median è pari a 2 in tutte le comunità ad eccezzione della comunità 81 la quale è un caso limite avendo 3 nodi. Inoltre, generalmente, in tutte le community,  si osserva mean > median, indicativo di distribuzioni asimmetriche (con coda lunga a destra), caratterizzate dalla presenza di pochi archi con peso elevato e di molti archi con peso ridotto. In alcune community (ad esempio Community 5) questa differenza tra media e mediana è più marcata, mentre in altre risulta più contenuta (ad esempio Community 20). Ciò suggerisce la presenza di coppie di geni fortemente co-targettate, immerse in un contesto di co-targeting complessivamente più moderato.
+
+Il parametro max misura peso massimo osservato nella community ovvero il numero massimo di farmci condivisi da una coppia di geni. In altre parole, è un indice di quanto può essere forte il co-targetting in quella community. Ci sono molte community con un max elevato indice che in tutte le reti esiste almeno una coppia di geni co-targettata da un numero alto di farmaci.
+
+I parametri weight_eq_1_pct e weight_eq_2_pct sono stati introdotti come informazioni aggiuntive e rappresentano rispettivamente la quota di archi gene–gene sostenuti da uno e da due farmaci. Si osserva che weight_eq_1_pct è sempre ben al di sotto del 50% (ad eccezione di casi patologici di dimensione molto ridotta), mentre weight_eq_2_pct risulta spesso la classe dominante (≈ 40–70%). Questo comportamento è coerente con una mediana dei pesi pari a due, che implica che almeno la metà degli archi presenti nelle co-occurrence networks sia sostenuta da due o più farmaci.

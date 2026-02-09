@@ -247,7 +247,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--community-min-size",
         type=int,
-        default=20,
+        default=10,
         help=(
             "Minimum community size for saving member lists when density filtering "
             "is enabled. Used as the minimum size to compute per-community "
