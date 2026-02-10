@@ -23,6 +23,7 @@ MAX_DRUGS_PER_VIEW = 50
 
 
 def _sanitize_title(title: str) -> str:
+    # Convert titles to filesystem-safe filenames.
     return "".join(
         c if c.isalnum() or c in {"-", "_"} else "_"
         for c in title.lower()
@@ -49,6 +50,7 @@ def _select_drug_gene_subgraph(
     max_nodes: int,
     focus: str,
 ) -> tuple[nx.Graph, list, list, str]:
+    # Split bipartite partitions from node attributes.
     drug_nodes = [
         n for n, data in graph.nodes(data=True)
         if data.get("bipartite") == "drug"
@@ -68,11 +70,13 @@ def _select_drug_gene_subgraph(
         raise ValueError("focus must be one of: 'high', 'mid', 'low'.")
 
     if focus == "high":
+        # Prioritize highly connected drugs.
         candidate_drugs = [n for n in drug_nodes if graph.degree[n] > 10]
         sort_reverse = True
         degree_label = "High-degree"
         empty_msg = "No drug nodes with more than 10 connections were found in the graph."
     elif focus == "mid":
+        # Keep medium-connectivity drugs for a balanced spotlight.
         candidate_drugs = [
             n for n in drug_nodes
             if 5 <= graph.degree[n] <= 15
@@ -81,6 +85,7 @@ def _select_drug_gene_subgraph(
         degree_label = "Mid-degree"
         empty_msg = "No drug nodes with between 5 and 15 connections were found in the graph."
     else:
+        # Focus on sparse-profile drugs.
         candidate_drugs = [n for n in drug_nodes if graph.degree[n] <= 10]
         sort_reverse = False
         degree_label = "Low-degree"
@@ -91,6 +96,7 @@ def _select_drug_gene_subgraph(
 
     candidate_drugs.sort(key=lambda n: graph.degree[n], reverse=sort_reverse)
 
+    # Cap the number of drugs and fill the remaining budget with their genes.
     max_drug_limit = max(1, max_nodes - 1)
     max_drug_quota = min(len(candidate_drugs), MAX_DRUGS_PER_VIEW, max_drug_limit)
     selected_drugs = candidate_drugs[:max_drug_quota]
@@ -103,6 +109,7 @@ def _select_drug_gene_subgraph(
             neighbor for neighbor in graph.neighbors(drug)
             if graph.nodes[neighbor].get("bipartite") == "gene"
         ]
+        # Prefer high-degree genes to retain informative interactions.
         neighbors.sort(key=lambda n: graph.degree[n], reverse=True)
 
         for neighbor in neighbors:
@@ -172,6 +179,7 @@ def visualize_random_drug_target_subgraph(
         focus,
     )
 
+    # Optionally simplify the rendering by removing isolates/components.
     if drop_isolates:
         isolates = list(nx.isolates(subgraph))
         if isolates:
@@ -270,6 +278,7 @@ def visualize_random_drug_target_subgraph(
 
     output_path = _prepare_output_path(title)
 
+    # Save to the standard drug-gene output directory.
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -337,6 +346,7 @@ def visualize_similarity_subgraph(
     rng = random.Random()
     selected_nodes = nodes
     if sample_size != len(nodes):
+        # Sample deterministically when a subset is needed.
         rng.seed(sampling_seed)
         selected_nodes = rng.sample(nodes, sample_size)
 
@@ -352,6 +362,7 @@ def visualize_similarity_subgraph(
     spacing = 3.0 / math.sqrt(max(1, node_count))
     pos = nx.spring_layout(subgraph, seed=layout_seed, k=spacing, iterations=200)
 
+    # Scale node size by degree to emphasize local hubs.
     degrees = dict(subgraph.degree())
     max_degree = max(degrees.values()) or 1
     node_sizes = [
@@ -362,6 +373,7 @@ def visualize_similarity_subgraph(
     edge_weights = [
         subgraph[u][v].get("weight", 1.0) for u, v in subgraph.edges()
     ]
+    # Convert raw similarity weights to visible edge widths.
     normalized_widths = [
         0.5 + 2.0 * (weight - min(edge_weights, default=0))
         for weight in edge_weights
@@ -379,6 +391,7 @@ def visualize_similarity_subgraph(
     )
     legend_handles = None
     if community_membership:
+        # Color by community assignment and optionally build a compact legend.
         community_counts = Counter(
             community_membership.get(node, "Unassigned") for node in subgraph.nodes()
         )
@@ -435,6 +448,7 @@ def visualize_similarity_subgraph(
                     )
                 )
     else:
+        # Fallback coloring: encode node degree with a continuous colormap.
         node_collection = nx.draw_networkx_nodes(
             subgraph,
             pos,
@@ -477,6 +491,7 @@ def visualize_similarity_subgraph(
     target_dir = output_dir if output_dir is not None else SIMILARITY_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
     output_path = target_dir / f"{_sanitize_title(title)}.png"
+    # Persist figure to the selected directory.
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -511,6 +526,7 @@ def visualize_community_network(
     if community_graph.number_of_nodes() == 0:
         raise ValueError("Community graph is empty; cannot visualize.")
 
+    # Layout the network of communities with edge weights influencing attraction.
     layout_seed = seed if seed is not None else 24
     node_count = community_graph.number_of_nodes()
     spacing = 3.0 / math.sqrt(max(1, node_count))
@@ -525,6 +541,7 @@ def visualize_community_network(
     community_sizes = {
         node: data.get("size", 1) for node, data in community_graph.nodes(data=True)
     }
+    # Scale node areas by community size.
     min_size = min(community_sizes.values()) if community_sizes else 1
     max_size = max(community_sizes.values()) if community_sizes else 1
     size_range = max(1, max_size - min_size)
@@ -537,6 +554,7 @@ def visualize_community_network(
         node: community_graph.nodes[node].get("internal_weight", 0.0)
         for node in community_graph.nodes()
     }
+    # Color communities by internal weight to highlight dense internal structure.
     color_values = list(internal_weights.values())
     color_min = min(color_values, default=0.0)
     color_max = max(color_values, default=1.0)
@@ -547,6 +565,7 @@ def visualize_community_network(
     edge_weights = [
         data.get("weight", 1.0) for _, _, data in community_graph.edges(data=True)
     ]
+    # Normalize inter-community weights for consistent line thickness.
     if edge_weights:
         edge_min = min(edge_weights)
         edge_max = max(edge_weights)
@@ -585,6 +604,7 @@ def visualize_community_network(
         node: f"{node}\n(|C|={community_sizes.get(node, 0)})"
         for node in community_graph.nodes()
     }
+    # Annotate each node with its label and cardinality.
     nx.draw_networkx_labels(
         community_graph,
         pos,
@@ -614,6 +634,7 @@ def visualize_community_network(
     fig.tight_layout()
 
     output_path = _prepare_community_output_path(title)
+    # Save under the community visualization folder.
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -637,6 +658,7 @@ def visualize_community_dag(
     levels: dict[object, int] = {}
     is_dag = nx.is_directed_acyclic_graph(dag)
     if is_dag:
+        # Place nodes by topological level to emphasize hierarchy depth.
         for node in nx.topological_sort(dag):
             preds = list(dag.predecessors(node))
             levels[node] = 0 if not preds else 1 + max(levels[p] for p in preds)
@@ -646,6 +668,7 @@ def visualize_community_dag(
 
         pos: dict[object, tuple[float, float]] = {}
         for level, nodes in sorted(groups.items()):
+            # Spread nodes horizontally inside each level band.
             nodes_sorted = sorted(nodes, key=lambda value: str(value))
             width = max(1, len(nodes_sorted) - 1)
             for idx, node in enumerate(nodes_sorted):
@@ -653,12 +676,14 @@ def visualize_community_dag(
                 y = -float(level) * 1.8
                 pos[node] = (x, y)
     else:
+        # Fallback layout if the graph is not acyclic.
         layout_seed = seed if seed is not None else 42
         pos = nx.spring_layout(dag, seed=layout_seed, k=1.2, iterations=200)
         levels = {node: 0 for node in dag.nodes()}
 
     out_degree = dict(dag.out_degree())
     max_out = max(out_degree.values(), default=1) or 1
+    # Emphasize parent-like nodes with larger out-degree.
     node_sizes = [
         300 + 700 * (out_degree.get(node, 0) / max_out)
         for node in dag.nodes()
@@ -668,6 +693,7 @@ def visualize_community_dag(
         0.8 + 1.2 * float(data.get("set_difference", 1))
         for _, _, data in dag.edges(data=True)
     ]
+    # Width can encode optional set-difference metadata when available.
 
     fig, ax = plt.subplots(figsize=(12, 8))
     nx.draw_networkx_edges(
@@ -712,6 +738,7 @@ def visualize_community_dag(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"community_{community_id}_dag.png"
+    # Save the DAG image in the requested community folder.
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 

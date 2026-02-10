@@ -24,6 +24,7 @@ CO_OCCURENCE_PARAMETERS_DIR = CO_OCCURENCE_DIR / "parameters"
 
 
 def _sanitize_label(label: str) -> str:
+    # Keep output folder names filesystem-safe and deterministic.
     cleaned = label.strip().lower() or "graph"
     return "".join(
         ch if ch.isalnum() or ch in {"-", "_"} else "_"
@@ -37,10 +38,12 @@ def compute_global_parameters(
 ) -> dict[str, float | int]:
     """Compute network-wide statistics."""
 
+    # Core topology descriptors.
     node_count = graph.number_of_nodes()
     edge_count = graph.number_of_edges()
     density = nx.density(graph) if node_count > 1 else 0.0
 
+    # Weight distribution summary (defaults to 1.0 for unweighted edges).
     weights = [
         float(data.get(weight_attr, 1.0))
         for _, _, data in graph.edges(data=True)
@@ -78,6 +81,7 @@ def compute_node_parameters(
 ) -> pd.DataFrame:
     """Return node-level metrics as a DataFrame."""
 
+    # Return a stable schema even for empty graphs.
     nodes = list(graph.nodes())
     if not nodes:
         return pd.DataFrame(
@@ -100,6 +104,7 @@ def compute_node_parameters(
     closeness = nx.closeness_centrality(graph, distance=None)
 
     records = []
+    # Aggregate per-node centrality and local cohesion metrics.
     for node in nodes:
         records.append(
             {
@@ -125,6 +130,7 @@ def compute_edge_parameters(
         return pd.DataFrame(columns=["source", "target", weight_attr])
 
     records = []
+    # Export one row per edge for downstream tabular analysis.
     for u, v, data in graph.edges(data=True):
         records.append(
             {
@@ -145,6 +151,7 @@ def compute_filtering_parameters(
 ) -> dict[str, float | int | None]:
     """Describe preprocessing/filtering applied while building the graph."""
 
+    # Prefer explicit overrides; otherwise read the metadata stored on the graph.
     similarity_threshold = (
         similarity_threshold
         if similarity_threshold is not None
@@ -189,6 +196,7 @@ def save_network_parameters(
     target_dir = output_root / _sanitize_label(label)
     target_dir.mkdir(parents=True, exist_ok=True)
 
+    # Save each parameter family in a dedicated artifact for modular consumption.
     global_params = compute_global_parameters(graph, weight_attr=weight_attr)
     global_path = target_dir / "global_parameters.json"
     with global_path.open("w", encoding="utf-8") as fh:
@@ -227,6 +235,7 @@ def compute_cooccurrence_parameters(
 ) -> dict[str, object]:
     """Compute co-occurrence network metrics (excluding assortativity)."""
 
+    # Global structure and connectivity statistics.
     node_count = graph.number_of_nodes()
     edge_count = graph.number_of_edges()
     density = nx.density(graph) if node_count > 1 else 0.0
@@ -242,6 +251,7 @@ def compute_cooccurrence_parameters(
     )
     global_clustering = nx.transitivity(graph) if node_count > 2 else 0.0
 
+    # Weight-level summaries capture sparsity and interaction strength.
     weights = [
         float(data.get(weight_attr, 1.0))
         for _, _, data in graph.edges(data=True)
@@ -257,6 +267,7 @@ def compute_cooccurrence_parameters(
     weight_eq_1 = 0
     weight_eq_2 = 0
     weight_ge_k = 0
+    # Bucket edge weights to quantify how many links are weak vs recurrent.
     for weight in weights:
         weight_int = int(round(weight))
         if weight_int == 1:
@@ -335,6 +346,7 @@ def save_cooccurrence_parameters_by_community(
 
 
 def _community_weight_distribution(weights: list[float]) -> dict[str, float]:
+    # Provide robust defaults so summaries stay valid when no inter-community edges exist.
     if not weights:
         return {
             "min_weight": 0.0,
@@ -354,6 +366,7 @@ def _community_weight_distribution(weights: list[float]) -> dict[str, float]:
 
 
 def _community_global_parameters(community_graph: nx.Graph) -> dict[str, float | int]:
+    # Summarize the community graph as a network-of-communities.
     community_count = community_graph.number_of_nodes()
     edge_count = community_graph.number_of_edges()
     density = nx.density(community_graph) if community_count > 1 else 0.0
@@ -378,6 +391,7 @@ def _community_global_parameters(community_graph: nx.Graph) -> dict[str, float |
 
 
 def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
+    # Build per-community rows with size, connectivity, and internal density.
     if community_graph.number_of_nodes() == 0:
         return pd.DataFrame(
             columns=[
@@ -420,6 +434,7 @@ def _community_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
 
 
 def _community_edge_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
+    # Transform inter-community links to tabular form and add a normalized distance proxy.
     if community_graph.number_of_edges() == 0:
         return pd.DataFrame(
             columns=["source", "target", "weight", "biological_distance"]
@@ -449,6 +464,7 @@ def _community_edge_parameters_df(community_graph: nx.Graph) -> pd.DataFrame:
 
 
 def _louvain_parameters(community_graph: nx.Graph) -> dict[str, float | int]:
+    # Extract detection metadata plus descriptive statistics of community sizes.
     sizes = [
         int(attrs.get("size", len(attrs.get("members", []))))
         for _, attrs in community_graph.nodes(data=True)
@@ -482,6 +498,7 @@ def save_community_data(
     output_dir = Path(output_dir) if output_dir else COMMUNITY_METRICS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Save global stats, per-community table, edge table, and Louvain summary.
     global_params = _community_global_parameters(community_graph)
     global_path = output_dir / "community_global_parameters.json"
     with global_path.open("w", encoding="utf-8") as fh:
@@ -527,6 +544,7 @@ def save_community_normalized_laplacian_spectra(
 
 
 def _community_density(size: int, internal_edge_count: int) -> float:
+    # Density of an undirected simple graph induced by community members.
     max_internal_edges = size * (size - 1) / 2 if size > 1 else 0
     if max_internal_edges == 0:
         return 0.0
@@ -554,6 +572,7 @@ def save_community_members_by_density(
     )
 
     community_members: dict[str, list[str]] = {}
+    # Keep only dense and sufficiently large communities.
     for node, attrs in community_graph.nodes(data=True):
         size = int(attrs.get("size", 0))
         internal_edge_count = int(attrs.get("internal_edge_count", 0))
@@ -566,6 +585,7 @@ def save_community_members_by_density(
         community_members[node] = [str(member) for member in sorted(members)]
 
     with output_path.open("w", encoding="utf-8", newline="") as fh:
+        # Write one column per community and one row per member rank.
         fieldnames = list(community_members.keys())
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
@@ -599,6 +619,7 @@ def save_community_profile_summary(
 
     records: list[dict[str, object]] = []
     communities = sorted(community_graph.nodes())
+    # For each eligible community, count distinct and shared target signatures.
     for node in communities:
         attrs = community_graph.nodes[node]
         size = int(attrs.get("size", 0))
@@ -670,6 +691,7 @@ def save_community_node_info(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     records = []
+    # Normalize member metadata from similarity graph attributes into tabular rows.
     for member in sorted(members):
         attrs = similarity_graph.nodes.get(member, {})
         drug_id = attrs.get("original_id")
@@ -736,6 +758,7 @@ def compute_dag_global_parameters(graph: nx.DiGraph) -> dict[str, float | int]:
     n_sources = sum(1 for degree in in_degrees.values() if degree == 0)
     n_sinks = sum(1 for degree in out_degrees.values() if degree == 0)
 
+    # Estimate hierarchy depth via longest directed path in the acyclic graph.
     if n_nodes == 0 or n_edges == 0:
         max_depth = 0
     else:
@@ -776,6 +799,7 @@ def compute_dag_node_parameters(graph: nx.DiGraph) -> pd.DataFrame:
 
     levels: dict[object, int] = {}
     try:
+        # Assign level as the longest predecessor chain ending at each node.
         for node in nx.topological_sort(graph):
             preds = list(graph.predecessors(node))
             if not preds:
@@ -812,6 +836,7 @@ def save_dag_parameters(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Persist both graph-level and node-level DAG diagnostics.
     global_params = compute_dag_global_parameters(graph)
     global_path = output_dir / "dag_global_parameters.json"
     with global_path.open("w", encoding="utf-8") as fh:

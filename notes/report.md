@@ -1,3 +1,13 @@
+# Objective
+L'obiettivo generale del progetto è quello di analizzare la struttura topologica e funzionale del dataset Chemical–Gene Interaction Network (ChG-InterDecagon) analizzando come i farmaci, raggrupati e distribuiti attraverso criteri di similarità definiti, si organizzano agiscono sui diversi geni presenti nel dataset. Dopo aver costruito e visualizzato una rappresentazione della rete bipartita drug-gene, si vuole costruire una similarity network che identifichi farmaci con profili simili attraverso la jaccard similarity. Con questa si vuole analizzare parametri che descrivono il comportamento dei farmaci come densità e modularity. 
+
+Il secondo obbiettivo è analizzare come, grazie al Louvian method, i farmaci si organizzano in comunità in modo da identificare se esse sono omogenee o eterogenee dividendosi in sotto gruppi.
+
+Successivamente si vuole mettere la lente su i geni e analizzare la ridondanza e la co-targettazione all'interno delle community individuate in precedenza. In questo modo si può idendificare geni fortemente co-targettati e moduli funzionali interni. Questo può avere interessanti riscontri biologici.
+
+Siccome parametri come densità e clustering coefficient non permettono di dare una caratterizzazione più profonda della struttura interna delle community, si vuole procedere ad un'analisi spettrale utilizzando la  Laplaciana normalizzata la quale consente di valutare la coesione strutturale globale e l’eventuale presenza di sottostrutture modulari.
+
+Come ultimo obiettivo, si vuole analizzare relazioni di generalità/specificità tra farmaci all'interno di stesse community attraverso la costruzione di un Directed Acyclic Graph (DAG). Questo consente di identificare profili di geni massimali, varianti incrementali e profili specfici. Questo permette di avere una prima idea della struttra farmacologica della community.
 # Descrizoine del dataset
 Il report analizza il dataset “Chemical-gene interaction network” (ID 10016-ChG-InterDecagon) che può essere trovato al seguente link: https://snap.stanford.edu/biodata/datasets/10016/10016-ChG-InterDecagon.html.
 Esso rappresenta un network biologico in cui i nodi sono farmaci/composti chimici e geni/proteine. Gli archi della rete rappresentano le interazioni biologiche tra questi elementi. Tali interazioni sono associazioni funzionali o biomediche come il legame di un composto chimico ad una proteina target, l'attivazione o l'inibizione di un gene effetti osservati sperimentalmente e predizioni computazionali. Per le successive analisi, è importante evidenziare che il dataset non è limitato ad un singolo contesto ma aggrega anche dati provenienti da condizioni sperimentali differenti. Di seguito si trova una tabella con tutte le informazioni specifiche riguardanti il dataset
@@ -604,3 +614,77 @@ Di seguito è riportata una statistica delle gerarchie e una visualizzazione del
 laber: statistica delle gerarchie individuate dalla dag.
 
 IMMAGINE DAG
+
+# Struttura del codice
+Il codice disponibile nella pagina GitHub https://github.com/D1nary/complex_network è composto da tre file principali:
+Il file main del progetto è complex.py il quale è l’orchestratore CLI dell’intero progetto. In esso vengono letti e puliti i dati, esegue la costruzione delle reti (lancia network.py), il salvataggio dei dati e la visualizzazione delle reti
+
+network.py contiene la logica di costruzione/trasformazione dei grafi attraverso NetworkX, e il calcolo degli eigen values delle community.
+
+Infine saves.py e visualizzation.py, rispettivamente, salvano i dati delle reti e le visualizzazioni di esse
+
+## Salvataggio dati e grafi
+```txt
+results/
+├── drug_gene/
+│   ├── mid-degree_drug_spotlight.png
+│   │   └── drug-target subgraph image (mid-degree focus)
+│   └── mid_degree_drug_spotlight/
+│       ├── global_parameters.json
+│       │   └── global graph metrics
+│       ├── node_parameters.csv
+│       │   └── node-level metrics
+│       ├── edge_parameters.csv
+│       │   └── edge-level metrics/attributes
+│       └── filtering.json
+│           └── applied filtering details
+│
+├── similarity/
+│   ├── random_drug_similarity_snapshot.png
+│   │   └── drug-drug similarity network snapshot
+│   └── similarity_network/
+│       ├── global_parameters.json
+│       │   └── global similarity-network metrics
+│       ├── node_parameters.csv
+│       │   └── node-level metrics
+│       ├── edge_parameters.csv
+│       │   └── edges with similarity weights
+│       ├── filtering.json
+│       │   └── threshold and filtering info (removed nodes/edges)
+│       └── normalized_laplacian_spectra.json
+│           └── normalized Laplacian matrices + eigenvalues per community
+│
+├── community/
+│   ├── drug_similarity_snapshot_by_community.png
+│   │   └── similarity snapshot colored by community
+│   └── community_network_metrics/
+│       ├── community_global_parameters.json
+│       │   └── global metrics of the community-level graph
+│       ├── community_parameters.csv
+│       │   └── per-community metrics (size, degree, density, ...)
+│       ├── community_edge_parameters.csv
+│       │   └── inter-community edges (weight, biological_distance)
+│       ├── louvain_parameters.json
+│           └── Louvain summary (resolution, modularity, size stats)
+│
+├── co_occurence/
+│   └── parameters/
+│       └── co_occurence_parameters.json
+│           └── co-occurrence metrics (in current flow: per-community)
+│
+└── dag/
+    └── communities/
+        └── {community_id}/
+            ├── community_nodes.csv
+            │   └── drug metadata for the community (target list, coverage, ...)
+            ├── dag_global_parameters.json
+            │   └── global DAG metrics (sources, sinks, max_depth, ...)
+            ├── dag_node_parameters.csv
+            │   └── DAG node metrics (in/out degree, level, ...)
+            └── graph/
+                └── community_{community_id}_dag.png
+                    └── DAG visualization for the community
+```
+
+# Results
+Per quanto riaguarda la similarity network, il valore della density suggerisce una rete sparsa ma connessa siccome sono presenti comunità con density elevate. Il fatto che solo una piccola frazione di possibili coppie (con entrambi i threshold) supera la soglia di similarità indica che la maggior parte dei farmaci non è simile alla maggioranza degli altri il che è corenete con reti biologiche in cui si ha alta specificità e poche similarità fortiß

@@ -140,6 +140,8 @@ def print_graph_sample(graph: nx.Graph) -> None:
 
 
 def _parse_target_list(value: object) -> list[int] | None:
+    # Normalize heterogeneous CSV representations (JSON-like strings, Python lists, NaN)
+    # into a clean Python list so target sets can be safely built for DAG generation.
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None
     if isinstance(value, list):
@@ -167,6 +169,7 @@ def build_and_save_community_dag(
     max_depth: int = 3,
     remove_transitive_edges: bool = True,
 ) -> None:
+    # Load per-community drug metadata generated in the community analysis step.
     community_nodes_path = community_dir / "community_nodes.csv"
     if not community_nodes_path.exists():
         print(f"Community {community_id} has no node info at {community_nodes_path}")
@@ -174,6 +177,7 @@ def build_and_save_community_dag(
 
     df = pd.read_csv(community_nodes_path)
     targets_by_node: dict[int, set[int]] = {}
+    # Build a mapping: drug_id -> set(target_gene_ids), skipping malformed rows.
     for row in df.itertuples(index=False):
         drug_id = getattr(row, "drug_id", None)
         if pd.isna(drug_id):
@@ -191,18 +195,22 @@ def build_and_save_community_dag(
         print(f"Community {community_id} has no targets to build a DAG.")
         return
 
+    # Create the inclusion DAG where edges represent target-set containment relations.
     dag = build_target_inclusion_dag(
         targets_by_node,
         min_set_difference=min_set_difference,
     )
     if remove_transitive_edges:
+        # Optional transitive reduction keeps only informative direct dependencies.
         dag = reduce_transitive_edges(dag)
+    # Persist a visual rendering before filtering by depth constraints.
     visualize_community_dag(
         dag,
         community_id=community_id,
         output_dir=community_dir / "graph",
     )
 
+    # Filter communities by DAG depth to keep only structures within the chosen range.
     global_params = compute_dag_global_parameters(dag)
     if global_params["max_depth"] < min_depth:
         print(
@@ -333,11 +341,12 @@ def main() -> None:
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset not found at {data_path}")
 
-    # Sequentially process and summarize the dataset
+    # Load, clean, and summarize the source interaction table before graph construction.
     df = read_targets(data_path)
     df = preprocess(df)
     describe(df)
 
+    # Build the bipartite drug-target graph and save a representative spotlight snapshot.
     graph = build_drug_target_network(df)
     print_graph_sample(graph)
     drug_spotlight = visualize_random_drug_target_subgraph(
@@ -367,11 +376,13 @@ def main() -> None:
     communities = []
     if {"similarity", "community", "cooccurence"} & requested:
         print("SIMILARITY NETWORK CREATION")
+        # Project drug-target data into a drug-drug similarity network with weighted edges.
         similarity_threshold = 0.40
         similarity_graph = build_drug_similarity_network(
             df,
             similarity_threshold=similarity_threshold,
         )
+        # Collect filtering metadata for reproducibility in saved outputs.
         filtering_details = {
             "similarity_threshold": similarity_threshold,
             "nodes_removed": similarity_graph.graph.get("removed_drugs"),
@@ -383,6 +394,7 @@ def main() -> None:
         if similarity_graph.number_of_nodes() == 0:
             print("Similarity graph is empty; skipping visualization.")
         else:
+            # Save a bounded random snapshot to keep visualizations readable.
             snapshot_seed = 2
             similarity_snapshot = visualize_similarity_subgraph(
                 similarity_graph,
@@ -407,6 +419,7 @@ def main() -> None:
             print("Community/co-occurrence requested but similarity graph is empty.")
         else:
             print("COMMUNITY NETWORK CREATION")
+            # Run Louvain on the similarity graph and annotate nodes with community labels.
             community_graph, membership, communities = build_community_network(
                 similarity_graph,
                 weight="weight",
@@ -426,6 +439,7 @@ def main() -> None:
             f"(largest size {largest})"
         )
 
+        # Persist global community metrics and per-selected-community node details.
         save_community_data(community_graph, COMMUNITY_METRICS_DIR)
         total_targets = int(df["Gene"].nunique())
         for community_id in sorted(set(args.community_ids)):
@@ -449,12 +463,14 @@ def main() -> None:
             communities,
             min_size=args.laplacian_community_min_size,
         )
+        # Store spectral signatures to compare structural differences among communities.
         laplacian_path = save_community_normalized_laplacian_spectra(
             laplacian_spectra,
             RESULTS_DIR / "similarity" / "similarity_network",
         )
         print(f"Saved normalized Laplacian spectra to {laplacian_path}")
         if args.community_density_threshold is not None:
+            # Export member lists and profile summaries only for dense/large communities.
             drug_targets = {
                 node: data.get("targets", [])
                 for node, data in similarity_graph.nodes(data=True)
@@ -485,6 +501,7 @@ def main() -> None:
             )
 
         if similarity_snapshot is not None:
+            # Re-render the snapshot with community coloring for quick visual inspection.
             visualize_similarity_subgraph(
                 similarity_snapshot,
                 max_nodes=similarity_snapshot.number_of_nodes(),
@@ -503,6 +520,7 @@ def main() -> None:
         else:
             print("CO-OCCURRENCE NETWORK CREATION")
             community_parameters = {}
+            # Build gene co-occurrence networks inside sufficiently large drug communities.
             for idx, community in enumerate(communities):
                 if len(community) < args.cooccurrence_community_min_size:
                     continue
@@ -527,11 +545,13 @@ def main() -> None:
                 params["community_size"] = len(community)
                 community_parameters[label] = params
 
+            # Save per-community co-occurrence metrics in a single summary artifact.
             cooccurrence_path = save_cooccurrence_parameters_by_community(
                 community_parameters
             )
             print(f"Saved co-occurrence parameters to {cooccurrence_path}")
 
+    # Build and save DAGs for explicitly requested community IDs (if available).
     community_count = len(communities)
     for community_id in sorted(set(args.community_ids)):
         if community_count and (community_id < 0 or community_id >= community_count):

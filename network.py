@@ -116,6 +116,7 @@ def build_drug_similarity_network(
             f"but has {set(df.columns)}."
         )
 
+    # Normalize input schema before set-based similarity computations.
     tmp = df[["Drug", "Gene"]].copy()
     tmp["Drug"] = tmp["Drug"].astype(int)
     tmp["Gene"] = tmp["Gene"].astype(int)
@@ -132,6 +133,7 @@ def build_drug_similarity_network(
 
     G = nx.Graph()
     if not drug_targets:
+        # Keep empty-graph metadata so downstream reporting still has context.
         G.graph.update(
             {
                 "similarity_threshold": similarity_threshold,
@@ -145,6 +147,7 @@ def build_drug_similarity_network(
         return G
 
     for drug_id, targets in drug_targets.items():
+        # Persist each drug's target list as node metadata for later community profiling.
         G.add_node(
             f"Drug_{drug_id}",
             bipartite="drug",
@@ -152,6 +155,7 @@ def build_drug_similarity_network(
             targets=sorted(targets),
         )
 
+    # Compare each drug pair once and keep only edges above the threshold.
     for drug_a, drug_b in combinations(drug_targets.keys(), 2):
         set_a = drug_targets[drug_a]
         set_b = drug_targets[drug_b]
@@ -199,11 +203,13 @@ def build_gene_cooccurrence_network(
             f"but has {set(df.columns)}."
         )
 
+    # Clean identifiers and remove duplicated drug-gene interactions.
     tmp = df[["Drug", "Gene"]].copy()
     tmp["Drug"] = tmp["Drug"].astype(int)
     tmp["Gene"] = tmp["Gene"].astype(int)
     tmp = tmp.drop_duplicates(subset=["Drug", "Gene"])
 
+    # Keep informative genes by frequency: remove both rare and overly generic genes.
     gene_drug_counts = tmp.groupby("Gene")["Drug"].nunique()
     original_gene_count = int(gene_drug_counts.shape[0])
     if gene_drug_counts.empty:
@@ -238,6 +244,7 @@ def build_gene_cooccurrence_network(
     cooccurrence_graph = nx.Graph()
     cooccurrence_graph.add_nodes_from(f"Gene_{gene_id}" for gene_id in gene_ids)
 
+    # Count how many drugs induce each gene pair co-occurrence.
     shared_drug_counts: dict[tuple[int, int], int] = {}
     for _, group in filtered_tmp.groupby("Drug"):
         genes = sorted(set(group["Gene"].astype(int).tolist()))
@@ -254,6 +261,7 @@ def build_gene_cooccurrence_network(
             weight=float(weight),
         )
 
+    # Save filtering metadata in graph attributes for reproducibility.
     cooccurrence_graph.graph.update(
         {
             "metric": "shared_drugs_count",
@@ -309,6 +317,7 @@ def build_community_network(
     if graph.number_of_nodes() == 0:
         return nx.Graph(), {}, []
 
+    # Detect communities in the similarity graph using Louvain modularity optimization.
     communities = nx.algorithms.community.louvain_communities(
         graph,
         weight=weight,
@@ -326,10 +335,12 @@ def build_community_network(
         community_labels.append(label)
         internal_weights[label] = 0.0
         internal_edges[label] = 0
+        # Track node -> community assignment for later coloring/export steps.
         for node in community:
             membership[node] = label
 
     inter_weights: dict[tuple[str, str], float] = {}
+    # Aggregate original edges into intra-community and inter-community totals.
     for u, v, data in graph.edges(data=True):
         edge_weight = float(data.get(weight, 1.0))
         comm_u = membership[u]
@@ -346,6 +357,7 @@ def build_community_network(
     community_graph = nx.Graph()
     for label, community in zip(community_labels, communities):
         subgraph = graph.subgraph(community)
+        # Optionally suppress clustering values for very small communities.
         if min_clustering_size is not None and len(community) < min_clustering_size:
             internal_clustering = 0.0
         else:
@@ -388,9 +400,11 @@ def build_target_inclusion_dag(
     if not targets_by_node:
         return dag
 
+    # Store target sets on nodes for interpretability of exported DAG artifacts.
     for node, targets in targets_by_node.items():
         dag.add_node(node, targets=sorted(targets))
 
+    # Sort by target-set size so candidate supersets can be scanned efficiently.
     items = sorted(
         ((node, targets) for node, targets in targets_by_node.items()),
         key=lambda item: len(item[1]),
@@ -401,6 +415,7 @@ def build_target_inclusion_dag(
         for node_large, targets_large in items[i + 1 :]:
             size_large = len(targets_large)
             size_diff = size_large - size_small
+            # Early stop: list is size-ordered, so larger differences only increase.
             if size_diff > min_set_difference:
                 break
             if size_diff <= 0:
@@ -417,6 +432,7 @@ def reduce_transitive_edges(dag: nx.DiGraph) -> nx.DiGraph:
     if dag.number_of_edges() == 0:
         return dag.copy()
 
+    # Remove redundant paths while preserving original node-level annotations.
     reduced = nx.algorithms.dag.transitive_reduction(dag)
     for node, data in dag.nodes(data=True):
         if node in reduced:
@@ -441,6 +457,7 @@ def compute_community_normalized_laplacian_spectra(
         nodes = sorted(subgraph.nodes())
         if not nodes:
             continue
+        # Export both matrix and eigenvalues to support downstream spectral analysis.
         laplacian = nx.normalized_laplacian_matrix(
             subgraph,
             nodelist=nodes,
