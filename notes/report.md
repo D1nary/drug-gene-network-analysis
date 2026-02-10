@@ -407,3 +407,200 @@ Osservando i dati in tabella si osserva che la median è pari a 2 in tutte le co
 Il parametro max misura peso massimo osservato nella community ovvero il numero massimo di farmci condivisi da una coppia di geni. In altre parole, è un indice di quanto può essere forte il co-targetting in quella community. Ci sono molte community con un max elevato indice che in tutte le reti esiste almeno una coppia di geni co-targettata da un numero alto di farmaci.
 
 I parametri weight_eq_1_pct e weight_eq_2_pct sono stati introdotti come informazioni aggiuntive e rappresentano rispettivamente la quota di archi gene–gene sostenuti da uno e da due farmaci. Si osserva che weight_eq_1_pct è sempre ben al di sotto del 50% (ad eccezione di casi patologici di dimensione molto ridotta), mentre weight_eq_2_pct risulta spesso la classe dominante (≈ 40–70%). Questo comportamento è coerente con una mediana dei pesi pari a due, che implica che almeno la metà degli archi presenti nelle co-occurrence networks sia sostenuta da due o più farmaci.
+
+# Spectral analisys
+In modo da codificare la struttura di connettività interna di ciascuna community di farmaci sono state costruite le normalizzed Laplacian matrix e di esse, lo spettro degli eigenvalues è stato analizzato. 
+
+Sebbene, in una precedente analisi, siano stati calcolati parametri come density e clustering coefficient fornendo una prima caratterizzazione topologica delle community, l’analisi spettrale della Laplaciana normalizzata consente di valutare la coesione strutturale globale e l’eventuale presenza di sottostrutture modulari non rilevabili con le metriche appena citate. 
+
+La density, per esempio, è una caratterizzazaione globale indicante quanti archi sono presenti nella community. Infatti, due community con lo stesso valore di density, possono essere strutturalmente diverse (comunità quai-clique oppure costituita da due blocchi densi separati). In questo contesto, è difficile distinguere comunità realmetne omogenee da aggregazioni indotte dalla misura di similarità.
+
+Per analizzare la connectivity e la cohesivity delle reti, sono stati calcolati i Fiedler values ovveri i secondi eigenvalue più piccoli. Nella seguente tabella, sono riportati i Fiedler values per le comunità con size maggiore o uguale di 15.
+
+
+Per effettuare un'analisi dei Fiedler value individuati, introduciamo le seguenti classi operative
+| Range λ₁      | Interpretazione strutturale                       |
+| ------------- | ------------------------------------------------- |
+| **λ₁ ≪ 0.1**  | Community **quasi separabile**, struttura fragile |
+| **0.1 – 0.4** | Modularità interna marcata                        |
+| **0.4 – 0.8** | Strutturalmente coesa con eterogeneità interna    |
+| **0.8 – 1.1** | Community **fortemente coesa**                    |
+| **> 1.1**     | Quasi-clique / struttura estremamente compatta    |
+
+Nel dataset, esistono, sia comunità spettralmente deoli ((es. Community 100, 135, 188)) sia comunità spettralmente molto forti con λ₁ ≈ 1 o maggiore.
+
+GRAFICO FIEDLER
+label: Fiedler value in function of the size
+
+Dal grafico, si osserva che, per comunità più piccole, il Fiedler value può assumere valori sia piccoli che grandi identificando sia comunità con una grande connettività che altre con connettività ineriore. Per quanto riguada comunità più grandi (size > 50), a parte un solo caso, esse risultano essere più connesse.
+
+
+Ricapitolando, la density ci da informazioni solo su quanti archi sono presenti e non come sono essi sono distribuiti o se sono presenti separazioni interne mentre il Fidelr value fornisce infomrazioni su quanto facile o costoso separare il grafo in due parti, minimizzando il peso degli archi tagliati (tutorial “Algorithms for Graph Partitioning”). 
+Sulla base di questo, se la density è alta (molti archi nella rete) e il Fiedler value è alto (difficoltà a separare il grafo) vuol dire che siamo in presenza di una ridondanza reale poichè ci sono archi uniformemente distribuiti, nessun sottogruppo separabile, ogni nodo è connesso “bene” con tutti.
+Al contrario, se il Fiedler value è basso è "semplice" separare il grafo, siamo in presenza di una aggregazione artificiale ovvero una community che appare densa e compatta per costruzione matematica (similarità + threshold + algoritmo), ma che non rappresenta un insieme biologicamente omogeneo. Siamo in presenza di Due (o più) sottogruppi internamente molto densi e pochi archi tra i sottogruppi. 
+
+Nel ChG-InterDecagon questo succede quando Jaccard è permissiva su set grandi, farmaci condividono parte dei target ma appartengono a pathway diversi. 
+In questo caso il Louvain li mette insieme quindi la density resta alta ma spettralmente la community non regge. Di seguito sono riportati i dati ottenuti
+
+
+community id	size	density	Fiedler Value
+Community_13	18	0.791	0.270
+Community_20	22	0.792	0.384
+Community_21	82	0.778	0.514
+Community_22	83	0.913	0.611
+Community_5	359	1.000	0.971
+Community_54	22	0.745	0.672
+Community_78	32	0.905	0.830
+Community_81	20	1.000	1.036
+Community_97	19	0.754	0.263
+Community_135	16	0.425	0.029
+Community_188	72	0.324	0.006
+Community_192	39	0.601	0.045
+Community_203	23	0.482	0.112
+label: Table con Fieldler Value e density per un confronto
+
+Riprendendo l'analisi delle sezioni precedenti, dato che tutte le community elencate hanno density alta (≈ ≥ 0.75), la discriminante reale è il Fiedler value. Possiamo dividere le comunità (size >= 15) in 3 gruppi diversi:
+
+Fiedler basso: λ₁ ≲ 0.1
+In questo range sono presenti community con coesione globale debole, quasi separabili. Di questo gruppo ne fanno parte le community 135, 188 e 192
+
+Fiedler intermedio: 0.1 < λ₁ < 0.7
+Queste community sono dense ma strutturalmente eterogenee (community con una certa modularità interna) e molte di queste sono comunità quasi-cliqie locali. Di questo gruppo ne fanno parte le community 13, normalized_laplacian_spectra20, 21, 22, 97 e 203. 
+
+Fiedler alto: λ₁ ≳ 0.7
+Community globalmente coese. Di questo gruppo ne fanno parte le community 5, 78, 54 e 2 (banale matematicamente)
+
+In questo caso la community 5 precedentemente analizzata  non è un artefatto della Jaccard o del threshold, ma riflette una ridondanza reale dei profili target.normalized_laplacian_spectra
+
+
+Di seguito è riportato un esempio di spettro di eigen values per una comunity non clique (scelta con i criteri spiegati in seguito)
+
+IMMAGINE SPETTRO COMMUNITY 21
+label: Spettro eigen values community 21
+
+# DAG
+All'interno delle community, abbiamo farmaci simili per costruzione (Jaccard similarity). Un'informazione che le community non forniscono, sono delle relazioni di "generalità"/"specifità" all'interno di community con farmaci simili. 
+Se due farmaci sono simili all'interno della community, allora è prbalile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno). Le DAG costruite, inseme alle loro orientation rule, e analizzate di seguito vogliono analizzare proprio questo fatto. 
+
+## Community analizzata
+La seguente community è stata scelta per l'analisi perchè è una comunità informativa ovvero non banale (size piccola) non triviale (clique o quasi-clique) e strutturamente eterogenea e biologicamente interpretabile nodo per nodo
+Quello che la segunete analisi vuole fare è capire che ruolo ha ogni farmaco dentro la community.
+
+Si è cercata una community con le seguenti caratteristiche:
+- size 30 ≤ size ≤ 150
+- density alta ma non satura: 0.7 ≤ density ≤ 0.9
+   - Questo significa:
+      - esiste coerenza interna
+      - ma non tutti sono simili a tutti
+      - quindi c’è eterogeneità strutturale reale
+- Clustering coefficient alto ma non estremo: 0.6 ≤ clustering ≤ 0.9
+   - Interpretazione:
+      - sottogruppi locali ben definiti
+      - possibilità di famiglie di farmaci o sottopercorsi biologici
+- Fiedler value non estremo: Fiedler intermedio (né ≪ 0.1, né ≫ 0.8)
+   - Questo identifica comunità:
+      - ben connesse
+      - ma non rigidamente compatte
+      
+La migliore candidata per questa analisi è la community 21 la quale possiede i seguenti parametri:
+- size = 82
+- density ≈ 0.78
+- clustering ≈ 0.63
+- Fiedler ≈ 0.51
+
+## Orientation rule
+La DAG è stata costruita con la seguente orientation rule:
+
+Per prima cosa, i target vengono ordinati per dimensione. Successivamente, viene creato un arco dal set più grande al set più piccolo se il set piccolo è sottoinsieme del grande ( A -> B se T(B) ⊂ T(A)).  Si impone un vincolo sulla differenza di cardinalità ovvero si considerano solo coppie con 0 < |T(A)| - |T(B)| <= min_set_difference (di default 3) interrompendo il ciclo se la differenza è maggiore.
+
+Si ottiene in questo modo che:
+- A = profilo più “generale” (include tutto ciò che fa B + extra)
+- B = profilo più “specifico” (un sottoinsieme del generale)
+
+Il fatto che A  può avere al massimo 3 target in più rispetto a B è fondamentale per una rappresentazione gerarchica locale e per non perdere di interpretabilità biologica.
+
+Si identificano le seguenti tipologie di nodi:
+- Sorgenti: Farmaci massimali
+- Sink: Farmaci minimali
+- Nodi intermedi: varianti incrementali
+
+
+Il valore di density osservato, suggerisce che la gerarchia di inclusione tra i nodi è presente ma non troppo fitta con una conseguente rappresentazione parziale delle relazioni di dominanza. Questo è coerente con l'uso della regola di orientamento selettiva utilizzata , la quale tende a collegare tra loro solo profili di target molto simili in termini di dimensione. In altre parole, la density rappresenta una struttura interpretabile biologicamente senza indurre troppi collegamenti ridondanti o poco informativi.
+
+Il numero elevato di sources (circa il 43% dei nodi totali) è coerente con il vincolo imposto sulla differenza tra due insiemi "successivi" il quale limita fortemente la connessione tra insieme molto grandi e molto piccoli. Di conseguenza, molti nodi con set di target grandi non trovano sottoinsiemi “abbastanza vicini” e rimangono senza archi entranti, diventando sorgenti della DAG. Il numero di sink è basso.
+
+Sono presenti catente con una depth massima di 6 il che suggerisce la possibile presenza un processo di specializzazione progressiva partendo da farmcaci più "generali" proseguendo verso quelli più "specifici".
+
+Analizzando il numero elevato di archi si può dire che molti farmaci differiscono per pochi geni e quindi spesso condividono un core comune. 
+
+È importante tenere conto delle proprietà introdotte dall'orientation rule poichè i risultati ottenuti, sono fortemente influenzati da essa. Tra essi abbiamo una gerarchia locale e non globale imposta dal vincolo sulla cardinalità il quale oltre a gerarchie locali indipendenti con pochi livelli di profondità, produce anche molte sorgenti. 
+
+## DAG node parameters
+I seguenti parametri sono stati calcolati per ciascun nodo:
+
+- in_degree: numero di archi entranti 
+- out_degree: numero di archi uscenti 
+- degree_ratio: out_degree / (in_degree + 1) 
+- topological_level: livello topologico (0 per sorgenti, cresce lungo i predecessori)
+
+### in_degree and out_degree parameters
+Dai file salvati si mostra che:
+
+| Categoria grado | Nodi `in_degree` | Nodi `out_degree` |
+|---|---:|---:|
+| Uguale a 0 | 35 | 21 |
+| Tra 1 e 3 | 8 | 14 |
+| Maggiore di 5 | 39 | 47 |
+label: in_degree and out_degree count
+
+il 25% dei nodi ha in_degree = 0. Questi non sono sottoinsieme di nessun altro essendo profili massimali e quindi possono rappresentare una firma comune per molti altri farmaci diversi.
+
+39 farmaci hanno un in_degree > 5 ovvero, sono nodi contenuti in molti altri profili. Questi farmaci possono essere di varianti sperimetali o in condizioni differenti dello stesso composto proprio come accade per farmaci nel dataset ChG-InterDecagon.
+
+I nodi con outdegree alto rappresentano gli hub gerarchici mentre quelli con outdegree nullo sono nodi specifici che non contengono nessun altro. Di Questa ultima categoria ne fanno parte sia nodi che non si sono mai collegati ad altri (con nessun sottoinsieme) che i due nodi sink mostrati in giallo nel seguente grafico.
+
+### degree ratio
+
+Il degree ratio è stato calcolato come segue:
+$$
+\mathrm{degree\_ratio} = \frac{\mathrm{out\_degree}}{\mathrm{in\_degree} + 1}
+$$
+
+Esso è la misura dell'assimetria direzionale di un nodo ed è, inoltre, un indice del ruolo gerarchico di un nodo poichè può distinguere un nodo in:
+- Ruolo dominante: degree ratio alto
+- Nodo di transizione: degree_ratio ≈ 1
+- Nodo foglia/ specializzato: degree ratio basso
+
+I valori calcolati sono:
+| Statistica (degree_ratio) | Valore |
+|---|---:|
+| Media ± SEM | 5.151 ± 1.181 |
+| Mediana ± MAD | 0.375 ± 0.375 |
+| Minimo | 0.000 |
+| Massimo | 31.000 |
+| % nodi con ratio < 1 | 73.171% |
+label: degree ratio statistics
+
+Si osserva una distribuzione fortemente sbilanciata in cui la maggiorparte dei nodi hanno un valore << 1 (nodi nodi foglia) mentre sono presenti pochi nodi con valori molto alti che dominano la media. 
+
+Osservando il grafico sottostante, si osserva la presenza di diversi ruoli:
+Sorgenti isolate (viola in alto, degree_ratio = 0) con profili non ordinabili dall'orientation rule scelta. Sorgenti dominanti (viola in alto, degree_ratio ≫ 1) con out degree elevato. Questi sono profili target massimali e quindi radici di grandi sotto gerarchie. Nodi intermedi di smistamento (blu scuro / azzurri centrali). Questi ultimi hanno:
+- in_degree > 0
+- out_degree > 0
+- degree_ratio ≈ 1
+Essi collegano grandi profili a profili più specifici. Sottoinsiemi condivisi (turchesi, livello medio-basso) e pre-foglie (verdi chiari, penultimo livello) i qulali rappresentano i colli di bottiglia della gerarchia e sono gli ultimi passaggi prima della specializzazione massima, di conseguenza con una degree ratio molto basso. l'ultima tipologia inadividuata sono le foglie pure (gialli in fondo, degree_ratio = 0). Esse sono i terminali veri della dag ovvero i profili massimamente specifici. Rappresentano farmaci molto selettivi o condizioni sperimentali estremamente specifiche.
+
+Di seguito è riportata una statistica delle gerarchie e una visualizzazione della dag:
+
+| Categoria                  | # nodi | % sul totale |
+| -------------------------- | -----: | -----------: |
+| **Sorgenti isolate**       |     18 |       21.95% |
+| **Sorgenti dominanti**     |     17 |       20.73% |
+| **Nodi intermedi**         |     37 |       45.12% |
+| **Sottoinsiemi condivisi** |      6 |        7.32% |
+| **Pre-foglie**             |      2 |        2.44% |
+| **Foglie**                 |      2 |        2.44% |
+| **Totale**                 | **82** |     **100%** |
+laber: statistica delle gerarchie individuate dalla dag.
+
+IMMAGINE DAG

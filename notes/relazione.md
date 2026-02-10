@@ -497,8 +497,8 @@ GRAFICO FIELDLER VALUE IN FUNZIONE DELLA SIZE?
 
 Dal grafico, si osserva che, per comunità più piccole, il Fiedler value può assumere valori sia piccoli che grandi identificando comunità sia comunità con una grande connettività che altre con connettività ineriore. Per quanto riguada comunità più grandi (size > 50), a parte un solo caso, esse risultano essere più connesse.
 
-Ricapitolando, la density ci da informazioni solo su quanti archi sono presenti e non come sono essi sono distribuiti o se sono presenti separazioni interne mentre il Fidelr value fornisce infomrazioni su quanto facile o costoso separare il grafo in due parte minimizzando il peso degli archi tagliati (tutorial “Algorithms for Graph Partitioning”). 
-Sulla base di questo, se la density è alta (molti archi nella rete) e valuenè alto (difficoltà a separare il grafo) vuol dire che siamo in presenza di una ridondanza reale poichè ci sono archi uniformemente distribuiti, nessun sottogruppo separabile, ogni nodo è connesso “bene” con tutti.
+Ricapitolando, la density ci da informazioni solo su quanti archi sono presenti e non come sono essi sono distribuiti o se sono presenti separazioni interne mentre il Fidelr value fornisce infomrazioni su quanto facile o costoso separare il grafo in due parti, minimizzando il peso degli archi tagliati (tutorial “Algorithms for Graph Partitioning”). 
+Sulla base di questo, se la density è alta (molti archi nella rete) e il Fiedler value è alto (difficoltà a separare il grafo) vuol dire che siamo in presenza di una ridondanza reale poichè ci sono archi uniformemente distribuiti, nessun sottogruppo separabile, ogni nodo è connesso “bene” con tutti.
 Al contrario, se value è basso è "semplice" separare il grafo, siamo in presenza di una aggregazione artificiale ovvero una community che appare densa e compatta per costruzione matematica (similarità + threshold + algoritmo), ma che non rappresenta un insieme biologicamente omogeneo. Siamo in presenza di Due (o più) sottogruppi internamente molto densi e pochi archi tra i sottogruppi. 
 
 
@@ -544,7 +544,7 @@ SPETTRO SOLO COMMUNITY 5? CONFRONTO CON COMUNITÀ NON CLIQUE?
 
 # DAG
 All'interno delle community, abbiamo farmaci simili per costruzione (Jaccard similarity). Un'informazione che le community non forniscono, sono delle relazioni di "generalità"/"specifità" all'interno di community con farmaci simili. 
-Se due farmaci sono somili all'interno della community, allora è prbalile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno). Le DAG costruite e analizzate di seguito (in particolare le loro orientation rule) vogliono analizzare proprio questo fatto. 
+Se due farmaci sono simili all'interno della community, allora è prbalile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno). Le DAG costruite, inseme alle loro orientation rule, e analizzate di seguito vogliono analizzare proprio questo fatto. 
 
 ## Community analizzata
 La seguente community è stata scelta per l'analisi perchè è una comunità informativa ovvero non banale (size piccola) non triviale (clique o quasi-clique) ma strutturamente eterogenea e biologicamente interpretabile nodo per nodo

@@ -1,0 +1,275 @@
+{
+  "Community_5": {
+    "n_nodes": 880,
+    "n_edges": 159962,
+    "density": 0.41359499431171787,
+    "component_count": 1,
+    "giant_component_size": 880,
+    "global_clustering_coefficient": 0.5724887673053621,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 32.20857453645241,
+      "max": 359.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 6.432152636251109,
+      "weight_eq_2_pct": 64.56470911841562,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 359
+  },
+  "Community_13": {
+    "n_nodes": 453,
+    "n_edges": 67819,
+    "density": 0.6624372423762918,
+    "component_count": 1,
+    "giant_component_size": 453,
+    "global_clustering_coefficient": 0.8441722731706148,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 3.0163081142452706,
+      "max": 18.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 14.15385069080936,
+      "weight_eq_2_pct": 65.96086642386352,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 18
+  },
+  "Community_20": {
+    "n_nodes": 38,
+    "n_edges": 368,
+    "density": 0.5234708392603129,
+    "component_count": 1,
+    "giant_component_size": 38,
+    "global_clustering_coefficient": 0.6603861907548274,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 3.7010869565217392,
+      "max": 20.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 10.597826086956522,
+      "weight_eq_2_pct": 71.46739130434783,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 22
+  },
+  "Community_21": {
+    "n_nodes": 52,
+    "n_edges": 639,
+    "density": 0.4819004524886878,
+    "component_count": 1,
+    "giant_component_size": 52,
+    "global_clustering_coefficient": 0.7228227300802965,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 3.812206572769953,
+      "max": 78.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 31.768388106416275,
+      "weight_eq_2_pct": 35.36776212832551,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 82
+  },
+  "Community_22": {
+    "n_nodes": 181,
+    "n_edges": 8155,
+    "density": 0.5006138735420503,
+    "component_count": 1,
+    "giant_component_size": 181,
+    "global_clustering_coefficient": 0.6815420862380583,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 8.426364193746169,
+      "max": 83.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 9.834457388105458,
+      "weight_eq_2_pct": 62.84488044144696,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 83
+  },
+  "Community_54": {
+    "n_nodes": 14,
+    "n_edges": 34,
+    "density": 0.37362637362637363,
+    "component_count": 1,
+    "giant_component_size": 14,
+    "global_clustering_coefficient": 0.45714285714285713,
+    "weight_distribution": {
+      "min": 2.0,
+      "median": 2.0,
+      "mean": 2.588235294117647,
+      "max": 21.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 0.0,
+      "weight_eq_2_pct": 94.11764705882352,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 22
+  },
+  "Community_78": {
+    "n_nodes": 220,
+    "n_edges": 10781,
+    "density": 0.447530095475301,
+    "component_count": 1,
+    "giant_component_size": 220,
+    "global_clustering_coefficient": 0.6207998234205382,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 4.178091086170114,
+      "max": 31.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 29.848808088303496,
+      "weight_eq_2_pct": 39.7365736017067,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 32
+  },
+  "Community_81": {
+    "n_nodes": 3,
+    "n_edges": 3,
+    "density": 1.0,
+    "component_count": 1,
+    "giant_component_size": 3,
+    "global_clustering_coefficient": 1.0,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 1.0,
+      "mean": 7.333333333333333,
+      "max": 20.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 66.66666666666666,
+      "weight_eq_2_pct": 0.0,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 20
+  },
+  "Community_97": {
+    "n_nodes": 390,
+    "n_edges": 50858,
+    "density": 0.6704633840880627,
+    "component_count": 1,
+    "giant_component_size": 390,
+    "global_clustering_coefficient": 0.8125359750391439,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 4.371328011325652,
+      "max": 19.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 11.056274332455072,
+      "weight_eq_2_pct": 49.854496834323015,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 19
+  },
+  "Community_135": {
+    "n_nodes": 175,
+    "n_edges": 8407,
+    "density": 0.5521839080459771,
+    "component_count": 1,
+    "giant_component_size": 175,
+    "global_clustering_coefficient": 0.7551436246936882,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 2.5729749018674912,
+      "max": 9.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 46.853812299274416,
+      "weight_eq_2_pct": 30.39134054954205,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 16
+  },
+  "Community_188": {
+    "n_nodes": 130,
+    "n_edges": 3912,
+    "density": 0.4665474060822898,
+    "component_count": 1,
+    "giant_component_size": 130,
+    "global_clustering_coefficient": 0.7439302959570943,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 5.874233128834356,
+      "max": 33.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 6.186094069529653,
+      "weight_eq_2_pct": 45.44989775051125,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 72
+  },
+  "Community_192": {
+    "n_nodes": 63,
+    "n_edges": 1000,
+    "density": 0.5120327700972862,
+    "component_count": 1,
+    "giant_component_size": 63,
+    "global_clustering_coefficient": 0.7820100561272217,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 5.691,
+      "max": 31.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 1.7000000000000002,
+      "weight_eq_2_pct": 71.0,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 39
+  },
+  "Community_203": {
+    "n_nodes": 14,
+    "n_edges": 37,
+    "density": 0.4065934065934066,
+    "component_count": 1,
+    "giant_component_size": 14,
+    "global_clustering_coefficient": 0.5526315789473685,
+    "weight_distribution": {
+      "min": 1.0,
+      "median": 2.0,
+      "mean": 2.72972972972973,
+      "max": 17.0
+    },
+    "weight_sparsity": {
+      "weight_eq_1_pct": 21.62162162162162,
+      "weight_eq_2_pct": 56.75675675675676,
+      "weight_ge_threshold": 1,
+      "weight_ge_threshold_pct": 100.0
+    },
+    "community_size": 23
+  }
+}

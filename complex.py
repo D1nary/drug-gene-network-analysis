@@ -258,7 +258,7 @@ def parse_args() -> argparse.Namespace:
         "--networks",
         nargs="+",
         choices=["similarity", "community", "cooccurence"],
-        default=["similarity", "community"],
+        default=["similarity", "community", "cooccurence"],
         help=(
             "Networks to build and save. "
             "Choose from: similarity, community, cooccurence."
