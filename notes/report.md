@@ -1,7 +1,7 @@
 # Objective
-L'obiettivo generale del progetto è quello di analizzare la struttura topologica e funzionale del dataset Chemical–Gene Interaction Network (ChG-InterDecagon) analizzando come i farmaci, raggrupati e distribuiti attraverso criteri di similarità definiti, si organizzano e agiscono sui diversi geni presenti nel dataset. Dopo aver costruito e visualizzato una rappresentazione della rete bipartita drug-gene, si vuole costruire una similarity network che identifichi farmaci con profili simili attraverso la Jaccard similarity. Con questa si vuole analizzare parametri, come densità e modularity, che descrivono il l'organizzazione interna alla rete dei farmaci. 
+L'obiettivo generale del progetto è quello di analizzare la struttura topologica e funzionale del dataset Chemical–Gene Interaction Network (ChG-InterDecagon) analizzando come i farmaci, raggrupati e distribuiti attraverso criteri di similarità definiti, si organizzano e agiscono sui diversi geni presenti nel dataset. Dopo aver costruito e visualizzato una rappresentazione della rete bipartita drug-gene, si vuole costruire una similarity network che identifichi farmaci con profili simili attraverso la Jaccard similarity. Con questa si vuole analizzare parametri, come densità e modularity, che descrivono l'organizzazione interna alla rete dei farmaci. 
 
-Il secondo obbiettivo è analizzare come, grazie al Louvian method, i farmaci si organizzano in comunità in modo da identificare se esse sono omogenee o eterogenee (dividendosi in sotto gruppi).
+Il secondo obbiettivo è analizzare come, grazie al Louvian method, i farmaci si organizzano in comunità in modo da identificare se esse sono omogenee o eterogenee (dividendosi in sotto gruppi) e se diverse comunità interagiscono tra loro.
 
 Successivamente si vuole mettere la lente sui geni e analizzare la co-targettazione e la ridondanza di quest'ultima all'interno delle community individuate in precedenza. In questo modo si può idendificare geni fortemente co-targettati e moduli funzionali interni. Questo può avere interessanti riscontri biologici.
 
@@ -11,7 +11,7 @@ Come ultimo obiettivo, si vuole analizzare relazioni di generalità/specificità
 
 # Descrizoine del dataset
 Il report analizza il dataset “Chemical-gene interaction network” (ID 10016-ChG-InterDecagon) che può essere trovato al seguente link: https://snap.stanford.edu/biodata/datasets/10016/10016-ChG-InterDecagon.html.
-Esso contiene un network biologico in cui i nodi sono farmaci/composti chimici e geni/proteine. Gli archi della rete rappresentano le interazioni biologiche tra questi elementi. Tali interazioni sono associazioni funzionali o biomediche come il legame di un composto chimico ad una proteina target, l'attivazione o l'inibizione di un gene effetti osservati sperimentalmente e predizioni computazionali. Per le successive analisi, è importante evidenziare che il dataset non è limitato ad un singolo contesto ma aggrega anche dati provenienti da condizioni sperimentali differenti. Di seguito si trova una tabella con tutte le informazioni specifiche riguardanti il dataset
+Esso contiene un network biologico in cui i nodi sono farmaci/composti chimici e geni/proteine. Gli archi della rete rappresentano le interazioni biologiche tra questi elementi. Tali interazioni sono associazioni funzionali o biomediche come il legame di un composto chimico ad una proteina target, l'attivazione o l'inibizione di un gene, effetti osservati sperimentalmente e predizioni computazionali. Per le successive analisi, è importante evidenziare che il dataset non è limitato ad un singolo contesto ma aggrega anche dati provenienti da condizioni sperimentali differenti. Di seguito si trova una tabella con tutte le informazioni specifiche riguardanti il dataset
 
 | Dataset statistic                         | Valore    |
 |------------------------------------------|----------:|
@@ -43,7 +43,7 @@ Label: Esempio ID farmaci e geni dopo il preprocessing
 
 # Methodology
 ## Grafo bipartito
-Per una rappresentazione visuale della rete è stato creato un grafo bipartito drug-gene. Per una visualizzazione più chiara, non sono stati utilizzati tutti i nodi ma solo quelli con un grado compreso tra 5 e 15 imponendo un numero massimo di nodi drug a 50, un numero totale di nodi a 200. Il grafo ottenuto possiede:
+Per una rappresentazione visuale della rete è stato creato un grafo bipartito drug-gene. In modo da visualizzare chiaramente i nodi, non sono stati utilizzati tutti ma solo quelli con un grado compreso tra 5 e 15 imponendo un numero massimo di nodi drug a 50 su un numero totale di nodi di 200. Il grafo ottenuto possiede:
 
 
 | nodes | edges |
@@ -92,7 +92,7 @@ I parametri relativi al filtraggio della rete di similarità con threshold 0,3 s
 label: Parametri similarity network (threshold = 0,3)
 
 
-Questo valore di threshold indica che un arco (drug–drug) è presente nella rete solo se la similarità tra due farmaci è ≥ 0.3. Essa è una soglia moderata che mantiene connessioni con similarità medio–bassa, quindi preserva una rete relativamente densa rispetto a soglie più stringenti. Genera una rete connessa ma non troppo, utile per il community detection riducendp il rumore ed eliminando similarità assolutamente deboli. 
+Questo valore di threshold indica che un arco (drug–drug) è presente nella rete solo se la similarità tra due farmaci è ≥ 0.3. Essa è una soglia moderata che mantiene connessioni con similarità medio–bassa, quindi preserva una rete relativamente densa rispetto a soglie più stringenti. Genera una rete connessa ma non troppo, utile per il community detection, riducendo il rumore ed eliminando similarità assolutamente deboli. 
 
 Siccome il numero di nodi originali (original_node_count) è 1774 e il numero di nodi "sopreavvisuti" (retained_node_count) è 1441, si osserva che, dopo il filtraggio, la rete conserva l'81,2% dei farmaci.
 
@@ -120,19 +120,19 @@ del numero di connessioni rispetto al threshold precedente.
 
 Il numero di nodi rimossi rimane invariato a 333. Ciò indica che questi farmaci non presentano valori di similarità pari o superiori a 0.4 con nessun altro farmaco del dataset, risultando quindi isolati nella similarity network già al threshold più precedente.
 
-Uno degli scopi di questa analisi, è quello di costruire una community network per ricercare comunità di farmaci con meccanismài d'azione simili. In questo contesto, non avrebbe senso alzare troppo del threshold potrebbe avere l'effetto di tenere solo le relazioni “ovvie” e perdere quelle deboli ma biologicamente interessanti. Infatti anche similarità più deboli rappresentano un caso interessante poichè, due farmaci che condividono pochi target possono essere candidati per drug repurposing. Un farmaco con profilo di target solo parzialmente simile può comunque avere effetti collaterali simili oppure opportunità di combinazione terapeutica. Imporre soglie troppo rigide rischia di semplificare eccessivamente una realtà biologica che è invece caratterizzata da relazioni sfumate e parziali.
+Uno degli scopi di questa analisi, è quello di costruire una community network per ricercare comunità di farmaci con meccanismài d'azione simili. In questo contesto, non avrebbe senso alzare troppo del threshold potrebbe avere l'effetto di tenere solo le relazioni “ovvie” e perdere quelle deboli ma biologicamente interessanti. Se due farmaci condividono anche solo parzialmente un set di geni, essi possono avere effetti collaterali simili e potenzialmente interessanti per future analisi. Un threshold troppo alto rischia di eliminare questi casi mantenedo solo relazioni ovvie e già studiate
 
 Le seguenti analisi sono state eseguite considerando un threshold di 0.4.
 
 
 ### Similarity network global data
-
-La rete prodotta possiede 1441 nodi totali, 73558 archi e una densità pari a 0.07. La densità è stata calcolata con:
+la density misura la frazione di coppie di geni che condividono almeno un farmaco all’interno della community. Essa rappresenta quindi un indicatore di ridondanza farmacologica
+La rete prodotta possiede 1441 nodi totali, 73558 archi e una densità pari a 0.07 ovvero, il 93% delle coppie di farmaci non supera la soglia jaccard. Questo è indice di una rete globalmente sparsa ma comunque un valore tipico di reti di similarità biologiche. La densità è stata calcolata con:
 \[
 \text{density} = \frac{2E}{N(N - 1)}
 \]
 
-Per reti biologiche, il valore di density è un valore moderatamente alto. Rappresenta una rete connessa ma non prossima alla saturazione. Com'è possibile osservare dalla segunete rappresentazione della similarity network e come verrà discusso dopo, la density globale è fortemente influenzata dalla presenza di giant components e in particolare da quella avente dimensione di 359 nodi. 
+Com'è possibile osservare dalla segunete rappresentazione della similarity network e come verrà discusso in seguito, la density globale è fortemente influenzata dalla presenza di giant components e in particolare da quella avente dimensione di 359 nodi. 
 
 Di seguito è mostrata una rappresentazione di 500 nodi scelti casualmente dalla similarity network
 
@@ -140,7 +140,7 @@ IMMAGINE SIMILARITY
 label: Visaulizzation of 500 casual nodes from the similarity network
 
 
-# Community network analysis
+## Community network analysis
 Dopo aver costruito la similarity nework, è stata costruita la relativa community network attraverso il louvian method.
 Di seguito sono riportati i parametri di Louvian salvati nel file louvian_parameters.json dopo l'esecuzione dell'analisi.
 
@@ -154,17 +154,15 @@ Di seguito sono riportati i parametri di Louvian salvati nel file louvian_parame
 | mean_community_size    | 5.521  |
 | median_community_size  | 2.000  |
 
-## Modularity
-Una modularity di circa 0.20 indica la presenza di una struttura modulare debole ma reale. Questo ci suggerisce che i farmaci non possiedono una distruìibuzione casua ma si "organizzano" in community, ovvero gruppi caratterizzati da profili di geni parzialmente condivisi. 
+### Parameters
+- Modularity
+Una modularity di circa 0.20 indica la presenza di una struttura modulare debole ma reale. Questo ci suggerisce che i farmaci non possiedono una distribuzione casuale ma si "organizzano" in community, ovvero gruppi caratterizzati da profili di geni parzialmente condivisi. Come vedremo più avanti, geni appartenenti a community diverse, possono essere collegati fra loro producendo (almeno in un caso) una struttura interconnessa.
 
-La natuara dei sistemi biologici e faramcologici è complessa. Infatti in essi farmaci diversi possono avere effetti parzialmente simili, agendo su uno stesso set di geni condividendo pathway o target, pur appartendendo a a diverse classi funzionali. Questo comportamento è presente anche nel dataset analizzato in cui nodi appartenenti a community diverse sono connessi suggerendo la presenza di una struttura interconnessa. In questo contesto, tali farmaci possono avere potenziali effetti collaterali comuni e  possibili opportunità di combinazione terapeutica o drug repurposing.
-
-## Other parameters
 - Median:
-Il valore mediano delle comunità risulta essere 2. Questo significa che più della metà delle comunità ha 2 farmaci o meno. Questo suggerisce gruppi di farmaci molto simili fra di loro i quali possono essere varianti strutturali di uno stesso composto oppure farmaci che condividono uno o pochissimi target molto specifici. In altre parole, queste comunità rappresentano farmaci di nicchia con bersagli rari oppure possono essere outliers interessanti per riposizionamento. Per esempio: se un singleton si collega debolmente a una grande comunità, potrebbe condividere qualche pathway con farmaci di un’altra indicazione.
+Il valore mediano delle comunità risulta essere 2. Questo significa che più della metà delle comunità ha 2 farmaci o meno. Questo suggerisce la presenza di gruppi farmacologici molto simili fra di loro i quali possono essere varianti strutturali di uno stesso composto oppure farmaci che condividono uno o pochissimi target molto specifici. In altre parole, queste comunità rappresentano farmaci di nicchia con bersagli rari oppure possono essere outliers interessanti per riposizionamento.
 
 - Mean, max community 
-La media è rappresentata da una comunità di circa 5 farmaci. Questo valore insieme a quello della mediana, indicano una distribuzione fortemente sbilanciata con pochi cluster molto grandi e tanti piccoli. 
+La media è rappresentata da una comunità di circa 5 farmaci. Questo valore, insieme a quello della mediana, indica una distribuzione fortemente sbilanciata con pochi cluster molto grandi e tanti piccoli. 
 
 ISTOGRAMMA
 label: The histogram rapresents the sizes of all the communities
@@ -172,23 +170,15 @@ label: The histogram rapresents the sizes of all the communities
 Il valore massimo è rappresentato da una comunità con 359 elementi. Questa comunità verrà approfondita meglio nelle sezioni sucessive.
 
 
-## Inforamazioni biologiche ricrea il file colab per la stampa del graficoavabili da questi valori
-
-Anche in assenza di un’analisi dettagliata della composizione interna di ciascuna comunità, i parametri ottenuti tramite il metodo di Louvain consentono di trarre alcune considerazioni biologiche rilevanti. In primo luogo, la presenza di una modularità diversa da zero indica che la rete di farmaci non è organizzata in modo casuale, ma presenta una struttura modulare, suggerendo l’esistenza di gruppi di farmaci che condividono meccanismi e bersagli potenzialmente simili.
-
-La presenza di farmaci appartenenti a comunità diverse suggerisce la possibilità che farmaci appartenenti a classi terapeutiche diverse, possano, poichè agenti su stessi geni, indurre degli effetti collaterali simili. Questo è interessante dal punto di vista del riposizionamento farmacologico. 
-
-
-
 ## Communities analisys
-Le singole comunità vengono analizzate nel file community_parameters.csv. Il file è organizzato in colonne ciascuna con una caratteristica della comunità:
+Le singole comunità vengono salvate nel file community_parameters.csv. Il file è organizzato in colonne ciascuna con una caratteristica della comunità:
 - community id: Identificativo della comunità
 - size: Dimensione della community
 - degree: Numero di arhci del nodo
 - weighted degree: Somma dei pesi degli archi incidenti su un nodo
 - clustering coefficient: Grado di chiusura locale delle comunità
 
-Nella seguente tabella sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10.
+Nella seguente tabella sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10. COME MAI?
 
 
 community_id  size degree weighted_degree clustering_coefficient density
@@ -217,9 +207,11 @@ Community_203 23   0      0.000           0.513                  0.482
 
 ### Size
 
-La distribuzione delle size delle community indica la presenza di un elevato numero di piccoli moduli farmacologici. Questi farmaci potrebbero avere profili rari o altamente specifici. Questi elementi del network, inoltre possono rappresentare meccanismi d'azione poco ridondanti o scarsamente esplorati e, con ulteriori analisi, possono essere interessanti punti di partenza per  l'analisi di nuovi farmaci.
+La distribuzione delle size delle community indica la presenza di un elevato numero di piccoli moduli farmacologici. Questi farmaci potrebbero avere profili rari o altamente specifici oppure, possono rappresentare meccanismi d'azione poco ridondanti o scarsamente esplorati e, con ulteriori analisi, possono essere interessanti punti di partenza per l'analisi di nuovi farmaci.
 
-Si nota la presenza di comunità molto grandi. Queste possono essere aree associate a target o pathway ampiamente studiati. Un'altra ragione plausibile per la presenza di queste ultime può essere, come vedremo più avanti, la natura intrinseca del dataset. Infatti esso contiene dat ottenuti attraverso varianti di una stessa condizione sperimentale o in condizioni differenti dello stesso composto. Siccome questi farmaci agiscono su set di geni molto simili, si potrebbero condurre delle analisi più approfondite per la ricerca di possibili combinazioni terapeutiche, anceh tra farmaci di communità strettamente connesse.
+Si nota la presenza di comunità molto grandi. Queste possono essere aree associate a target o pathway ampiamente studiati. Un'altra ragione plausibile per la presenza di queste ultime può essere, come vedremo più avanti, la natura intrinseca del dataset. Infatti esso contiene dat ottenuti attraverso varianti di una stessa condizione sperimentale o in condizioni differenti dello stesso composto. 
+
+Siccome questi farmaci agiscono su set di geni molto simili, si potrebbero condurre delle analisi più approfondite per la ricerca di possibili combinazioni terapeutiche, anche tra farmaci di communità strettamente connesse.
 
 range           count percent
 --------------- ----- -------
@@ -251,7 +243,7 @@ Le cause matematiche sono da attribuirsi a come viene calcolata la density (form
 
 Inoltre, la presenza o l'assenza di un arco dipende da una soglia (0.4). Quindi, se due nodi sono appena sotto la soglia l'arco nella similarity network è assente mentre, se la similarity è appena sopra la soglia, l'arco è presente. Questo introduce variabilità artificiale e maggiore dispersione dei peorfili di densità. 
 
-Da un punto di vista biologico, comunità grandi spesso aggregano famiglie farmacologiche ampie, pathway complessi o target parzialmente sovrapposti creando, di conseguenza cluster di più grandi dimensioni ma non completamente connessi.
+Da un punto di vista biologico, comunità grandi spesso aggregano famiglie farmacologiche ampie, pathway complessi o target parzialmente sovrapposti creando, di conseguenza cluster di più grandi dimensioni ma non completamente connessi riflettendosi in valori inferiori e più variabili per quanto riguarda la densità.
 
 Per le comunità di dimensione più contenuta (size compresa tra 10 e 32), si osserva in generale una densità elevata, con la maggior parte dei valori compresa tra ~0.7 e ~1.0. Sono tuttavia presenti alcune eccezioni con densità più moderata o bassa, come Community_135 (0.425), Community_203 (0.482) e Community_100 (0.346).
 
@@ -271,13 +263,11 @@ Quindi più di un terzo dei componenti della comunità condivide lo stesso esatt
 
 Uno delle possibili cause di questo valore alto di density per una comunity cosi grande, può essere che la Jaccard diventa molto permissiva quando i set sono grandi e l'intersezione tra due set è molto ampia. Infatti avendo set di grandi dimensioni, anche con decine di geni diversi, la similarità resta alta. Avendo poi un threshold sufficientemente permissivo, come nel nostro caso, il valore di $E_{\text{int}} \approx \frac{n(n-1)}{2}$ con conseguente density $\approx 1$.
 
-Un'ulteriore causa del valore quasi unitario di questa community, come accennato precedentemente, potrebbe provenire dalla natura intrinseca del dataset. Infatti esso, aggregando screening diversi producendo il risultato che, farmaci testati negli stessi screening sugli stessi pannelli genici con risultati simili diventano vettorialmente indistinguibili. Questo produce sottografi altamente densi nella rete di similarità.
-
 Un'ulteriore causa del valore quasi unitario della density di questa community, può provenire dalla natura intrinseca del dataset. Esso non aggrega solo informazioni provenienti da fonti diverse (screening reali, sperimentali, prodotti computazionalmente) ma anche informazioni di uno stesso composto provenienti da screening diversi. Questo, unito al fatto che gli ID dei farmaci all'interno del dataset non distinguono il contesto sperimentale in cui sono stati prodotti i dati, può far si di generare farmaci con profili identici o quasi.
 
 Senza nessuna ulteriore analisi, questa comunità rappresenta una famiglia di farmaci con meccanismo d'azione quali identico oppure il targetting di un grande pathway.
 
-Sono presenti altre comunità con density unitaria per le quali può essere applicato lo stesso ragionamento appena fatto. Unito a questo fatto c'è da considerare che sono presenti clique banali come accade per la comunità 20. Essa continene 20 farmaci di cui 19 con lo stesso identico profilo composto da soli due farmaci. Questa rappresenta un clique più banale del precedente poichè il profilo è piccolissimo ed è replicato perfettamente.
+Sono presenti altre comunità con density unitaria per le quali può essere applicato lo stesso ragionamento appena fatto. Unito a questo fatto, c'è da considerare che sono presenti clique banali come accade per la comunità 20. Essa continene 20 farmaci di cui 19 con lo stesso identico profilo composto da soli due farmaci. Questa rappresenta un clique più banale del precedente poichè il profilo è piccolissimo ed è replicato perfettamente.
 
 
 ### Clustering coefficient
@@ -306,7 +296,7 @@ Community_192  39    0.601    0.706
 Community_203  23    0.482    0.513
 
 
-Si osservano diversi regimi di clustering coefficinet riassumibili in due: Clustering coefficient alto o moderatamente alto e clustering coefficient uguale a 0. Considerando il caso dei valori moderatamente elevati, si può dire che tali comunità  non presentano una struttura lineare o “a catena”, in cui i farmaci risultano simili solo a pochi vicini immediati, ma piuttosto costituiscono moduli fortemente coesi. Cioè, se un farmaco è simile ad altri farmaci all'interno della comuintà, è molto porbabile che, per come è stata definita la similarità e per la soglia utilizzata, esso sia siamile ad altri componenti della stessa.
+A parte alcuni casi, il clustering coefficient risulta essere sempre > 0.5. In questi casi, si può dire che tali comunità  non presentano una struttura lineare o “a catena”, in cui i farmaci risultano simili solo a pochi vicini immediati, ma piuttosto costituiscono moduli fortemente coesi. Cioè, se un farmaco è simile ad altri farmaci all'interno della comuintà, è molto porbabile che, per come è stata definita la similarità e per la soglia utilizzata, esso sia simile ad altri componenti della stessa.
 
 Le community 13, 20, 21, 22, 53, 54, 59, 78, 97 presentano valori compresi tra::
 | Size  | Density     | Clustering  |
@@ -339,16 +329,17 @@ Un'ultimo caso che si può notare dalla tabella precedente sono comunità con de
 
 In queste comunità il clustering coefficient non aggiunge nuova informazione rispetto alla density, ma rafforza l’evidenza di omogeneità estrema.
 
-## Weighted degree
+### Weighted degree
 Per descrivere il livello complessivo di interazione di una comunità con le altre è stato calcolato, il weighed degree. Esso è calcolato come la somma dei pesi degli archi inter-comunità (similarità Jaccard). 
 
 Solo le comunità 23 e 78 risultano essere connesse tra di loro con un $\text{weighted degree} = 12.99$.
 
 Siccome, un arco tra due comunità esiste solo se esistono farmaci appartenenti a comunità diverse ma connessi e che quindi condividono una porzione significativa di target genici (Jaccard maggiore uguale a 0.4), le due comunità rappresentano moduli farmacologici distinti ma non indipendenti. I farmaci "ponte" che connettono le due comunità possono agire su pathway diversi ma comunque interconnessi attraverso geni chiave.
 
-Il valore di weighted degree legato alla connessione di queste due comunità è di 12.99.
+Tali farmaci possono avere potenziali effetti collaterali comuni e possibili opportunità di combinazione terapeutica o drug repurposing.
 
-# Co-occurence network
+
+## Co-occurence network
 Per analizzare la frequenza con cui coppie di geni compaiono insieme nei profili dei farmaci, è sato deciso di costruire una serie di cooccurence network.
 A causa dell'elevato costo computazionale relativo al calcolo di una co-occurence network globale, si è scelto di creare ed analizzare co-occurence network per ciascuna comunità precedentemente identificata attraverso la community analisys. Ci si è concentrati sulle comunità con una $\text{size} \geq 15$. Oltre al filtro appena citato, ne è stato applicato un altro in modo da rendere i dati di più facile interpretazione rimuovendo rumore e strutture quasi clique. In particolare sono stati rimossi dalle community geni super-frequenti ovvero i geni il cui numero di farmaci associati è maggiore del 95° percentile della distribuzione “farmaci per gene”. 
 
@@ -371,31 +362,29 @@ Di seguito sono riportati i parametri delle cooccurence network trovate per cias
 | Community_203 | 5 | 10 | 1 | 1 | 5 | 1 | 23 |
 label: cooccurence network data
 
-## component count e giant component size
-Tutte le co-occurrence networks gene-gene hanno component count = 1. Questo vale indipendentemente dal numero di nodi (da 2 a 357), dalla densità (da ~0.75 a 1), dalla dimensione della community e dal clustering coefficient. Questo sta ad indicare che non esistono sottogruppi genetici isolati all’interno della community ovvero che la rete gene-gene è completamente connessa. In questo contesto, ogni gene è raggiungibile da ogni altro gene tramite almeno un cammino. 
+### component count e giant component size
+Tutte le co-occurrence networks gene-gene hanno component count = 1. Questo vale indipendentemente dal numero di nodi (da 2 a 357), dalla densità (da ~0.75 a 1) e dal clustering coefficient. Questo sta ad indicare che non esistono sottogruppi genetici isolati all’interno della community ovvero che la rete gene-gene è completamente connessa. In questo contesto, ogni gene è raggiungibile da ogni altro gene tramite almeno un cammino. 
 
-Sempre tenendo conto dei limiti imopsti dall'analisi e dalla natura instrinseca del dataset (discussa prima), da un punto di vista biologico, un valore di component count di 1 suggerische che i geni all'interno di ciascuna community partecipano ad un sistema funzionale interconnesso. Non emergono sottoinsiemi genetici separati maun unico blocco funzionale.
+Sempre tenendo conto dei limiti imopsti dall'analisi e dalla natura instrinseca del dataset (discussa prima), da un punto di vista biologico, un valore di component count di 1 suggerisce che i geni all'interno di ciascuna community partecipano ad un sistema funzionale interconnesso. Non emergono sottoinsiemi genetici separati maun unico blocco funzionale.
 
-Un dettaglio che si può notare dai risultati ottenuti è che in tutte le co-occurence network, la giannt component coincide con le dimensioni dell'intera rete. In questo scenario, il concetto di giant component perde la sua usuale accezione di “sottostruttura dominante” e diventa equivalente alla rete stessa.
+### Density e global clustering coefficient
+#### density
+Siccome la connettività globale della rete è già garantita (component conunt = 1) per costruzione, in questo caso la density misura la frazione di coppie di geni che condividono almeno un farmaco all’interno della community. Essa rappresenta quindi un indicatore di ridondanza farmacologica.
 
-## Density e global clustering coefficient
-### density
-Siccome la connettività globale della rete è già garantita (component conunt = 1) per costruzione, in questo caso la density ci dice quanto è ridondante la condivisione dei farmaci tra i geni della comunity.
-
-La density, calcolata con la formula vista in precedenza, presenta valori elevati in quasi tutti i casi ovvero si ha assenza di reti sparse (density < 0.5). Possiamo identificare tre regimi diversi benchè tutti con valori elevati:
+La density, calcolata con la formula vista in precedenza, presenta valori elevati in quasi tutti i casi ovvero si ha assenza di reti sparse (density > 0.5). Possiamo identificare tre regimi diversi benchè tutti con valori elevati:
 
 Nel primo regime di density, si hanno valori [0.95,1.00]. In questo caso siamo in assenza quasi totale di eterogeneità dei profili in cui tutte o quasi tutte le coppie di geni sono collegate (reti clique o quasi). Si ha una forte ridondanza farmacologica in cui i geni sono colpiti, nella maggioranza dei casi, dagli stessi farmaci (forte ridondanza farmacologica).
 
 Nel seconod, la density compresa tra [0.75,0.90). Siamo in presenza di reti ancora pienamente connesse però con un numero più o meno significativo di archi mancanti. In queste strutture, meno clique e più articolate delle precedenti, ci possono essere geni coinvolti in processi distinti ma indirettamente interconnessi
 
 ### clustering coefficient
-Anche nel caso del clustering coefficient, siamo in presenza di valori molot alti. Possiamo distinguere due regimi: valori massimi e valori alti ma < 1.
+Anche nel caso del clustering coefficient, siamo in presenza di valori molto alti. Possiamo distinguere due regimi: valori massimi e valori alti ma < 1.
 Nel primo caso siamo in presenza di strutture totalmente ridondanti geneticamente in cui ogni tripla forma forma un traingolo. 
 Nel secondo caso (≈ 0.88 – 0.95) abbiamo strutture non completamente chiuse con moduli genetici più articolati rispetto al caso precedente con la presenza di geni ponte che collegano sottoinsiemi funzionali diversi. 
 
 È presente una community con clustering coefficient = 0. Questa è una rete composta da 2 geni quindi assenza di trangoli per definizione.
 
-## Wheight distribution and sparsity
+### Wheight distribution and sparsity
 
 Community	n_nodes	median	mean	max	weight_eq_1_pct	weight_eq_2_pct
 Community_5	880	2,000	32,209	359	6,432	64,565
@@ -417,17 +406,16 @@ Osservando i dati in tabella si osserva che la median è pari a 2 in tutte le co
 
 Il parametro max misura peso massimo osservato nella community ovvero il numero massimo di farmci condivisi da una coppia di geni. In altre parole, è un indice di quanto può essere forte il co-targetting in quella community. Ci sono molte community con un max elevato indice che in tutte le reti esiste almeno una coppia di geni co-targettata da un numero alto di farmaci.
 
-I parametri weight_eq_1_pct e weight_eq_2_pct sono stati introdotti come informazioni aggiuntive e rappresentano rispettivamente la quota di archi gene–gene sostenuti da uno e da due farmaci. Si osserva che weight_eq_1_pct è sempre ben al di sotto del 50% (ad eccezione di casi patologici di dimensione molto ridotta), mentre weight_eq_2_pct risulta spesso la classe dominante (≈ 40–70%). Questo comportamento è coerente con una mediana dei pesi pari a due, che implica che almeno la metà degli archi presenti nelle co-occurrence networks sia sostenuta da due o più farmaci.
+I parametri weight_eq_1_pct e weight_eq_2_pct sono stati introdotti come informazioni aggiuntive e rappresentano rispettivamente la quota di archi gene–gene sostenuti da uno e da due farmaci. Si osserva che weight_eq_1_pct è sempre ben al di sotto del 50% (ad eccezione di casi di dimensione molto ridotta), mentre weight_eq_2_pct risulta spesso la classe dominante (≈ 40–70%). Questo comportamento è coerente con una mediana dei pesi pari a due, che implica che almeno la metà degli archi presenti nelle co-occurrence networks sia sostenuta da due o più farmaci.
 
-# Spectral analisys
-In modo da codificare la struttura di connettività interna di ciascuna community di farmaci sono state costruite le normalizzed Laplacian matrix e di esse, lo spettro degli eigenvalues è stato analizzato. 
+## Spectral analisys
+In modo da codificare la struttura di connettività interna di ciascuna community di farmaci sono state costruite le normalizzed Laplacian matrix e di esse, il valore del Fiedler value è stato analizzato. 
 
 Sebbene, in una precedente analisi, siano stati calcolati parametri come density e clustering coefficient fornendo una prima caratterizzazione topologica delle community, l’analisi spettrale della Laplaciana normalizzata consente di valutare la coesione strutturale globale e l’eventuale presenza di sottostrutture modulari non rilevabili con le metriche appena citate. 
 
 La density, per esempio, è una caratterizzazaione globale indicante quanti archi sono presenti nella community. Infatti, due community con lo stesso valore di density, possono essere strutturalmente diverse (comunità quai-clique oppure costituita da due blocchi densi separati). In questo contesto, è difficile distinguere comunità realmetne omogenee da aggregazioni indotte dalla misura di similarità.
 
-Per analizzare la connectivity e la cohesivity delle reti, sono stati calcolati i Fiedler values ovveri i secondi eigenvalue più piccoli. Nella seguente tabella, sono riportati i Fiedler values per le comunità con size maggiore o uguale di 15.
-
+Per analizzare la connectivity delle reti, sono stati calcolati i Fiedler values ovveri i secondi eigenvalue più piccoli.
 
 Per effettuare un'analisi dei Fiedler value individuati, introduciamo le seguenti classi operative
 | Range λ₁      | Interpretazione strutturale                       |
@@ -438,7 +426,7 @@ Per effettuare un'analisi dei Fiedler value individuati, introduciamo le seguent
 | **0.8 – 1.1** | Community **fortemente coesa**                    |
 | **> 1.1**     | Quasi-clique / struttura estremamente compatta    |
 
-Nel dataset, esistono, sia comunità spettralmente deoli ((es. Community 100, 135, 188)) sia comunità spettralmente molto forti con λ₁ ≈ 1 o maggiore.
+Nel dataset, esistono, sia comunità spettralmente deboli ((es. Community 100, 135, 188)) sia comunità spettralmente molto forti con λ₁ ≈ 1 o maggiore.
 
 GRAFICO FIEDLER
 label: Fiedler value in function of the size
@@ -448,10 +436,9 @@ Dal grafico, si osserva che, per comunità più piccole, il Fiedler value può a
 
 Ricapitolando, la density ci da informazioni solo su quanti archi sono presenti e non come sono essi sono distribuiti o se sono presenti separazioni interne mentre il Fidelr value fornisce infomrazioni su quanto facile o costoso separare il grafo in due parti, minimizzando il peso degli archi tagliati (tutorial “Algorithms for Graph Partitioning”). 
 Sulla base di questo, se la density è alta (molti archi nella rete) e il Fiedler value è alto (difficoltà a separare il grafo) vuol dire che siamo in presenza di una ridondanza reale poichè ci sono archi uniformemente distribuiti, nessun sottogruppo separabile, ogni nodo è connesso “bene” con tutti.
-Al contrario, se il Fiedler value è basso è "semplice" separare il grafo, siamo in presenza di una aggregazione artificiale ovvero una community che appare densa e compatta per costruzione matematica (similarità + threshold + algoritmo), ma che non rappresenta un insieme biologicamente omogeneo. Siamo in presenza di Due (o più) sottogruppi internamente molto densi e pochi archi tra i sottogruppi. 
+Al contrario, se il Fiedler value è basso, è "semplice" separare il grafo, siamo in presenza di una aggregazione artificiale ovvero una community che appare densa e compatta per costruzione matematica, ma che non rappresenta un insieme biologicamente omogeneo. Siamo in presenza di Due (o più) sottogruppi internamente molto densi e pochi archi tra i sottogruppi. 
 
-Nel ChG-InterDecagon questo succede quando Jaccard è permissiva su set grandi, farmaci condividono parte dei target ma appartengono a pathway diversi. 
-In questo caso il Louvain li mette insieme quindi la density resta alta ma spettralmente la community non regge. Di seguito sono riportati i dati ottenuti
+Nel ChG-InterDecagon questo succede quando Jaccard è permissiva su set grandi, farmaci condividono parte dei target ma appartengono a pathway diversi. In questo caso il Louvain li mette insieme quindi la density resta alta ma spettralmente la community non è realmente connessa omogeneamente. Di seguito sono riportati i dati ottenuti
 
 
 community id	size	density	Fiedler Value
@@ -476,24 +463,23 @@ Fiedler basso: λ₁ ≲ 0.1
 In questo range sono presenti community con coesione globale debole, quasi separabili. Di questo gruppo ne fanno parte le community 135, 188 e 192
 
 Fiedler intermedio: 0.1 < λ₁ < 0.7
-Queste community sono dense ma strutturalmente eterogenee (community con una certa modularità interna) e molte di queste sono comunità quasi-cliqie locali. Di questo gruppo ne fanno parte le community 13, normalized_laplacian_spectra20, 21, 22, 97 e 203. 
+Queste community sono dense ma strutturalmente eterogenee (community con una certa modularità interna). Di questo gruppo ne fanno parte le community 13, 20, 21, 22, 97 e 203. 
 
 Fiedler alto: λ₁ ≳ 0.7
 Community globalmente coese. Di questo gruppo ne fanno parte le community 5, 78, 54 e 2 (banale matematicamente)
 
-In questo caso la community 5 precedentemente analizzata  non è un artefatto della Jaccard o del threshold, ma riflette una ridondanza reale dei profili target.normalized_laplacian_spectra
-
+In questo caso la community 5 precedentemente analizzata  non è un artefatto della Jaccard o del threshold, ma riflette una ridondanza reale dei profili target.
 
 Di seguito è riportato un esempio di spettro di eigen values per una comunity non clique (scelta con i criteri spiegati in seguito)
 
 IMMAGINE SPETTRO COMMUNITY 21
 label: Spettro eigen values community 21
 
-# DAG
-All'interno delle community, abbiamo farmaci simili per costruzione (Jaccard similarity). Un'informazione che le community non forniscono, sono delle relazioni di "generalità"/"specifità" all'interno di community con farmaci simili. 
-Se due farmaci sono simili all'interno della community, allora è prbalile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno). Le DAG costruite, inseme alle loro orientation rule, e analizzate di seguito vogliono analizzare proprio questo fatto. 
+## DAG
+Un'informazione che le community non forniscono, sono delle relazioni di "generalità"/"specifità" all'interno di community con farmaci simili. 
+Se due farmaci sono simili all'interno della community, allora è probabile che condividono un core di geni e differiscono per una piccola periferia (pochi geni in più/in meno) quindi che esistano farmaci più generali e farmaci più specializzati. Le DAG costruite, inseme alle loro orientation rule, e analizzate di seguito vogliono analizzare proprio questo fatto. 
 
-## Community analizzata
+### Community analizzata
 La seguente community è stata scelta per l'analisi perchè è una comunità informativa ovvero non banale (size piccola) non triviale (clique o quasi-clique) e strutturamente eterogenea e biologicamente interpretabile nodo per nodo
 Quello che la segunete analisi vuole fare è capire che ruolo ha ogni farmaco dentro la community.
 
@@ -519,7 +505,7 @@ La migliore candidata per questa analisi è la community 21 la quale possiede i 
 - clustering ≈ 0.63
 - Fiedler ≈ 0.51
 
-## Orientation rule
+### Orientation rule
 La DAG è stata costruita con la seguente orientation rule:
 
 Per prima cosa, i target vengono ordinati per dimensione. Successivamente, viene creato un arco dal set più grande al set più piccolo se il set piccolo è sottoinsieme del grande ( A -> B se T(B) ⊂ T(A)).  Si impone un vincolo sulla differenza di cardinalità ovvero si considerano solo coppie con 0 < |T(A)| - |T(B)| <= min_set_difference (di default 3) interrompendo il ciclo se la differenza è maggiore.
@@ -535,10 +521,19 @@ Si identificano le seguenti tipologie di nodi:
 - Sink: Farmaci minimali
 - Nodi intermedi: varianti incrementali
 
+I dati globali della DAG sono i seguenti:
+{
+  "n_nodes": 82,
+  "n_edges": 681,
+  "density_dag": 0.103,
+  "n_sources": 35,
+  "n_sinks": 21,
+  "max_depth": 6
+}
 
 Il valore di density osservato, suggerisce che la gerarchia di inclusione tra i nodi è presente ma non troppo fitta con una conseguente rappresentazione parziale delle relazioni di dominanza. Questo è coerente con l'uso della regola di orientamento selettiva utilizzata , la quale tende a collegare tra loro solo profili di target molto simili in termini di dimensione. In altre parole, la density rappresenta una struttura interpretabile biologicamente senza indurre troppi collegamenti ridondanti o poco informativi.
 
-Il numero elevato di sources (circa il 43% dei nodi totali) è coerente con il vincolo imposto sulla differenza tra due insiemi "successivi" il quale limita fortemente la connessione tra insieme molto grandi e molto piccoli. Di conseguenza, molti nodi con set di target grandi non trovano sottoinsiemi “abbastanza vicini” e rimangono senza archi entranti, diventando sorgenti della DAG. Il numero di sink è basso.
+Il numero elevato di sources (circa il 43% dei nodi totali) è coerente con il vincolo imposto sulla differenza tra due insiemi "successivi" di conseguenza, molti nodi con set di target grandi non trovano sottoinsiemi “abbastanza vicini” e rimangono senza archi entranti, diventando sorgenti della DAG. Il numero di sink è più basso.
 
 Sono presenti catente con una depth massima di 6 il che suggerisce la possibile presenza un processo di specializzazione progressiva partendo da farmcaci più "generali" proseguendo verso quelli più "specifici".
 
@@ -546,7 +541,7 @@ Analizzando il numero elevato di archi si può dire che molti farmaci differisco
 
 È importante tenere conto delle proprietà introdotte dall'orientation rule poichè i risultati ottenuti, sono fortemente influenzati da essa. Tra essi abbiamo una gerarchia locale e non globale imposta dal vincolo sulla cardinalità il quale oltre a gerarchie locali indipendenti con pochi livelli di profondità, produce anche molte sorgenti. 
 
-## DAG node parameters
+### DAG node parameters
 I seguenti parametri sono stati calcolati per ciascun nodo:
 
 - in_degree: numero di archi entranti 
@@ -554,7 +549,7 @@ I seguenti parametri sono stati calcolati per ciascun nodo:
 - degree_ratio: out_degree / (in_degree + 1) 
 - topological_level: livello topologico (0 per sorgenti, cresce lungo i predecessori)
 
-### in_degree and out_degree parameters
+#### in_degree and out_degree parameters
 Dai file salvati si mostra che:
 
 | Categoria grado | Nodi `in_degree` | Nodi `out_degree` |
@@ -564,13 +559,13 @@ Dai file salvati si mostra che:
 | Maggiore di 5 | 39 | 47 |
 label: in_degree and out_degree count
 
-il 25% dei nodi ha in_degree = 0. Questi non sono sottoinsieme di nessun altro essendo profili massimali e quindi possono rappresentare una firma comune per molti altri farmaci diversi.
+35 farmaci hanno un in_degree = 0. Questi non sono sottoinsieme di nessun altro essendo profili massimali e quindi possono rappresentare una firma comune per molti altri farmaci diversi.
 
 39 farmaci hanno un in_degree > 5 ovvero, sono nodi contenuti in molti altri profili. Questi farmaci possono essere di varianti sperimetali o in condizioni differenti dello stesso composto proprio come accade per farmaci nel dataset ChG-InterDecagon.
 
 I nodi con outdegree alto rappresentano gli hub gerarchici mentre quelli con outdegree nullo sono nodi specifici che non contengono nessun altro. Di Questa ultima categoria ne fanno parte sia nodi che non si sono mai collegati ad altri (con nessun sottoinsieme) che i due nodi sink mostrati in giallo nel seguente grafico.
 
-### degree ratio
+#### degree ratio
 
 Il degree ratio è stato calcolato come segue:
 $$
@@ -592,14 +587,14 @@ I valori calcolati sono:
 | % nodi con ratio < 1 | 73.171% |
 label: degree ratio statistics
 
-Si osserva una distribuzione fortemente sbilanciata in cui la maggiorparte dei nodi hanno un valore << 1 (nodi nodi foglia) mentre sono presenti pochi nodi con valori molto alti che dominano la media. 
+Si osserva una distribuzione fortemente sbilanciata in cui la maggiorparte dei nodi hanno un valore << 1 (nodi nodi foglia) mentre sono presenti pochi nodi con valori molto alti. 
 
 Osservando il grafico sottostante, si osserva la presenza di diversi ruoli:
 Sorgenti isolate (viola in alto, degree_ratio = 0) con profili non ordinabili dall'orientation rule scelta. Sorgenti dominanti (viola in alto, degree_ratio ≫ 1) con out degree elevato. Questi sono profili target massimali e quindi radici di grandi sotto gerarchie. Nodi intermedi di smistamento (blu scuro / azzurri centrali). Questi ultimi hanno:
 - in_degree > 0
 - out_degree > 0
 - degree_ratio ≈ 1
-Essi collegano grandi profili a profili più specifici. Sottoinsiemi condivisi (turchesi, livello medio-basso) e pre-foglie (verdi chiari, penultimo livello) i qulali rappresentano i colli di bottiglia della gerarchia e sono gli ultimi passaggi prima della specializzazione massima, di conseguenza con una degree ratio molto basso. l'ultima tipologia inadividuata sono le foglie pure (gialli in fondo, degree_ratio = 0). Esse sono i terminali veri della dag ovvero i profili massimamente specifici. Rappresentano farmaci molto selettivi o condizioni sperimentali estremamente specifiche.
+Essi collegano grandi profili a profili più specifici. Sottoinsiemi condivisi (turchesi, livello medio-basso) e pre-foglie (verdi chiari, penultimo livello) i qulali rappresentano i colli di bottiglia della gerarchia e sono gli ultimi passaggi prima della specializzazione massima, di conseguenza con una degree ratio molto basso. L'ultima tipologia inadividuata sono le foglie pure (gialli in fondo, degree_ratio = 0). Esse sono i terminali veri della dag ovvero i profili massimamente specifici. Rappresentano farmaci molto selettivi o condizioni sperimentali estremamente specifiche.
 
 Di seguito è riportata una statistica delle gerarchie e una visualizzazione della dag:
 
@@ -688,14 +683,14 @@ results/
 ```
 
 # Results
-Per quanto riaguarda la similarity network, il valore della density suggerisce una rete sparsa ma connessa siccome sono presenti comunità con density elevate. Il fatto che solo una piccola frazione di possibili coppie (con entrambi i threshold) supera la soglia di similarità indica che la maggior parte dei farmaci non è simile alla maggioranza degli altri il che è corenete con reti biologiche in cui si ha alta specificità e poche similarità forti.
+Per quanto riaguarda la similarity network, il valore della density suggerisce una rete sparsa ma connessa siccome sono presenti comunità con density elevate. Il fatto che solo una piccola frazione di possibili coppie (con entrambi i threshold) supera la soglia di similarità indica che la maggior parte dei farmaci non è simile alla maggioranza degli altri il che è coerenete con reti biologiche in cui si ha alta specificità e poche similarità forti.
 
-La struttura del dataset presenta una struttura modulare debole ma non casuale in cui la distribuzione delle dimensioni è fortemente sbilanciata con molte community composte da pochi farmaci e una di grandi dimensioni (comunity clique). Un dettaglio da evidenziare è che la dimensione delle community non è determinante per la densità. Infatti community grandi possono essere clique (community 5) moderatamente connesse (community 21) oppure sparse (community 188). I parametri globali delle community, sono fortemente influenzati da moduli estremamente compatti in cui si ha un'alta ridondanza di profili e quindi una forte sovrapposizione di target.
-Il cluestering coefficient è alto ma minore indicando che le community non sono lineari o a catena e l'esistenza di blicchi interni più compatti. 
-Ultimo fatto da evidenziare è l'elevata separazione tra le comunità pochè solo due risultano connesse.
+La struttura del dataset presenta una struttura modulare debole ma non casuale in cui la distribuzione delle dimensioni è fortemente sbilanciata con molte community composte da pochi farmaci e una di grandi dimensioni (comunity clique). Un dettaglio da evidenziare è che la dimensione delle community non è determinante per la densità. Infatti community grandi possono essere clique (community 5), moderatamente connesse (community 21) oppure sparse (community 188). I parametri globali delle community, sono fortemente influenzati da moduli estremamente compatti in cui si ha un'alta ridondanza di profili e quindi una forte sovrapposizione di target.
+Il cluestering coefficient è alto indicando che le community non sono lineari o a catena e l'esistenza di blocchi interni più compatti. 
+Ultimo fatto da evidenziare è l'elevata separazione tra le comunità poichè solo due risultano connesse.
 
 Per quanto riguarda l'analisi gene-gene (cooccurence network), importante notare nuovametne che, sicocme component_count = 1 per ogni community, ogni cooccurence network è completamente connessa, ovvero tutti i geni sono raggiungibile tramite almeno un cammino. Dai valori alti di density emerge, anche in questo caso, una forte ridondanza di co-targetting. Inoltre, almeno il 50% degli archi è sostenuto da un numero $>=$ 2 farmaci.
 
-Community con density simili mostrano fiedler value molto diversi questo indica, come evidenziato in precedenza, che la density non è sufficiente per descrivere la coesione globale della community. Le community con Fiedler basso (135, 188, 192) sono quali separabili quindi si ha presenza di sottogruppi interni debolmente collegati. Community con fieldler intermedio - alto, sono dense ma con modurarità interna mentre (non rigidamente omogenea) mentre quelle con FIedler alto, sono globalmente coese e rappresentano coesione reale. La community clique, graazie al suo Fiedler vlaue alto, viene confermata comunità clique non solo matematicamente (dal calcolo della density) ma essa è spettralmente coesa.
+Community con density simili mostrano fiedler value molto diversi indicando che, come evidenziato in precedenza, la density non è sufficiente per descrivere la coesione globale della community. Le community con Fiedler basso (135, 188, 192) sono quali separabili quindi si ha presenza di sottogruppi interni debolmente collegati. Community con fieldler intermedio - alto, sono dense ma con modurarità interna (non rigidamente omogenea) mentre quelle con FIedler alto, sono globalmente coese e rappresentano coesione reale. La community clique, grazie al suo Fiedler vlaue alto, viene confermata comunità clique non solo matematicamente (dal calcolo della density) ma essa è spettralmente coesa.
 
-La costruzione e l'analisi della DAG riguardo alla community 21 evidenzia che essa presenta una gerarchia farmacologica interna (numerosi sorgenti e numero ridotto id sink). In questo contesto, si nota che una frazione significativa dei farmaci possiede profili massimali evidenziando l'esistenza, non di un unico profilo dominante, ma la presenza di più radici indipendenti. Dall'analisi del degree ratio, si evidenzia che la distribuzione è fortemente sbilanciata con la maggiorparte dei nodi è periferica e meno nodi dominano la gerarchia. La gerarchia finale scoperta dopo la costruzione della DAG mostra la presenza di radici multiple, uno strato intermedio dominante e pochio terminali estremamente specifici (gerarchia ramificata). 
+La costruzione e l'analisi della DAG riguardo alla community 21 evidenzia che essa presenta una gerarchia farmacologica interna (numerosi sorgenti e numero ridotto id sink). In questo contesto, si nota che una frazione significativa dei farmaci possiede profili massimali evidenziando l'esistenza, non di un unico profilo dominante, ma la presenza di più radici indipendenti. Dall'analisi del degree ratio, si evidenzia che la distribuzione è fortemente sbilanciata con la maggiorparte dei nodi è periferica e meno nodi dominano la gerarchia. La gerarchia finale scoperta dopo la costruzione della DAG mostra la presenza di radici multiple, uno strato intermedio dominante e pochi terminali estremamente specifici (gerarchia ramificata). 
