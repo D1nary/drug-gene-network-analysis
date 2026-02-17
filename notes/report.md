@@ -1,3 +1,6 @@
+# Introduction
+L'analisi delle interazioni tra farmaci e geni rappresenta un tema molto importante per quanto riguarda la farmacologia computazionale. Queste analisi permettono di esplorare meccanismi di interazione nuovi oppure di rivalutare quelli già ampiamente utilizzati. Il dataset ChG-InterDecagon permette di indagare non solo l'interazione tra farmaci e geni già note in letteratura, ma anche interazioni nuove poichè aggrega informazioni proveninenti da diverse fonti come esperimenti svolti in condizioni diverse e associazioni derivate da modelli computazionali. In questo lavoro, il dataset viene analizzato attraverso un'approccio basato sulla teoria delle reti con l'obiettio di caratterizzare la struttura topologica globale e l'organizzazazione funzionale locale del sistema.
+
 # Objective
 L'obiettivo generale del progetto è quello di analizzare la struttura topologica e funzionale del dataset Chemical–Gene Interaction Network (ChG-InterDecagon) analizzando come i farmaci, raggrupati e distribuiti attraverso criteri di similarità definiti, si organizzano e agiscono sui diversi geni presenti nel dataset. Dopo aver costruito e visualizzato una rappresentazione della rete bipartita drug-gene, si vuole costruire una similarity network che identifichi farmaci con profili simili attraverso la Jaccard similarity. Con questa si vuole analizzare parametri, come densità e modularity, che descrivono l'organizzazione interna alla rete dei farmaci. 
 
@@ -178,7 +181,7 @@ Le singole comunità vengono salvate nel file community_parameters.csv. Il file 
 - weighted degree: Somma dei pesi degli archi incidenti su un nodo
 - clustering coefficient: Grado di chiusura locale delle comunità
 
-Nella seguente tabella sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10. COME MAI?
+Nella seguente tabella sono stati riportati i dati ottenuti dall'analisi solo delle comunità con size maggiore o uguale a 10.
 
 
 community_id  size degree weighted_degree clustering_coefficient density
@@ -550,7 +553,7 @@ I seguenti parametri sono stati calcolati per ciascun nodo:
 - topological_level: livello topologico (0 per sorgenti, cresce lungo i predecessori)
 
 #### in_degree and out_degree parameters
-Dai file salvati si mostra che:
+si è calcolato che:
 
 | Categoria grado | Nodi `in_degree` | Nodi `out_degree` |
 |---|---:|---:|
