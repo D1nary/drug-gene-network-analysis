@@ -35,9 +35,6 @@ Finally, for selected communities, the project builds a **Directed Acyclic Graph
   - `results/community/`: Community visualizations and community-level metrics (`community_network_metrics/`).
   - `results/co_occurence/`: Co-occurrence parameter summaries.
   - `results/dag/communities/<id>/`: Per-community DAG inputs/outputs (community nodes, DAG metrics, DAG image).
-- `notes/`: Project notes/report material (markdown, PDF, and reference images used for documentation).
-- `vir_env/`: Local Python virtual environment (dependencies and interpreter packages).
-- `__pycache__/`: Python bytecode cache files.
 
 ## Typical workflow
 
