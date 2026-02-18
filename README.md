@@ -41,4 +41,4 @@ Finally, for selected communities, the project builds a **Directed Acyclic Graph
 1. Place/update dataset in `data/`.
 2. Run `complex.py` with desired CLI options.
 3. Inspect artifacts in `results/` (JSON/CSV metrics + PNG figures).
-4. Use `notes/` for report integration and interpretation material.
+4. Use `notes/` for report integration and interpretation material. 
