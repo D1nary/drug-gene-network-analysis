@@ -75,6 +75,74 @@ def compute_global_parameters(
     }
 
 
+def save_similarity_global_parameters(
+    graph: nx.Graph,
+    output_path: Path | str | None = None,
+    weight_attr: str = "weight",
+) -> tuple[dict[str, float | int], Path]:
+    """Compute and save global parameters for a cosine similarity network."""
+
+    components = list(nx.connected_components(graph))
+    n_components = len(components)
+    giant_component_nodes = max(components, key=len) if components else set()
+    giant_component_size = len(giant_component_nodes)
+    giant_component = (
+        graph.subgraph(giant_component_nodes).copy()
+        if giant_component_nodes
+        else nx.Graph()
+    )
+
+    if giant_component_size > 1:
+        diameter = int(nx.diameter(giant_component))
+        avg_path_length = float(nx.average_shortest_path_length(giant_component))
+    else:
+        diameter = 0
+        avg_path_length = 0.0
+
+    if graph.number_of_nodes() > 0:
+        communities = nx.algorithms.community.louvain_communities(
+            graph,
+            weight=weight_attr,
+            seed=42,
+        )
+        modularity = float(
+            nx.algorithms.community.modularity(
+                graph,
+                communities,
+                weight=weight_attr,
+            )
+        )
+        n_communities = len(communities)
+    else:
+        modularity = 0.0
+        n_communities = 0
+
+    global_params: dict[str, float | int] = {
+        "n_nodes": int(graph.number_of_nodes()),
+        "n_edges": int(graph.number_of_edges()),
+        "density": float(nx.density(graph)) if graph.number_of_nodes() > 1 else 0.0,
+        "n_components": int(n_components),
+        "giant_component_size": int(giant_component_size),
+        "avg_clustering": float(nx.average_clustering(graph, weight=weight_attr))
+        if graph.number_of_nodes() > 0
+        else 0.0,
+        "diameter": int(diameter),
+        "avg_path_length": float(avg_path_length),
+        "modularity": float(modularity),
+        "n_communities": int(n_communities),
+    }
+
+    if output_path is None:
+        output_path = RESULTS_DIR / "similarity" / "global_parameters.json"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(global_params, fh, indent=2, ensure_ascii=False)
+
+    return global_params, output_path
+
+
 def compute_node_parameters(
     graph: nx.Graph,
     weight_attr: str = "weight",

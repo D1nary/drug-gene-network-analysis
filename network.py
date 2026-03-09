@@ -4,10 +4,14 @@ the ChG-InterDecagon targets dataset."""
 
 from __future__ import annotations
 
+import heapq
 from itertools import combinations
+from pathlib import Path
 import pandas as pd
 import networkx as nx
 import numpy as np
+import scipy.sparse as sp
+from saves import save_similarity_global_parameters
 
 
 def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
@@ -81,6 +85,178 @@ def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
         G.add_edge(f"Drug_{drug_id}", f"Gene_{gene_id}")
 
     return G
+
+
+def build_node2vec_embeddings(
+    graph: nx.Graph,
+    dimensions: int = 128,
+    walk_length: int = 10,
+    num_walks: int = 3,
+    p: float = 1.0,
+    q: float = 1.0,
+    window_size: int = 3,
+    seed: int = 42,
+    max_start_nodes: int | None = 3000,
+    max_cooccurrence_pairs: int = 2_000_000,
+    output_path: Path | None = None,
+) -> pd.DataFrame:
+    """Compute Node2Vec-style embeddings and save them to CSV.
+
+    The output schema is:
+    ``node_id,node_type,emb_1,...,emb_d`` where ``d = dimensions``.
+    """
+
+    if dimensions <= 0:
+        raise ValueError("dimensions must be > 0.")
+    if walk_length <= 1:
+        raise ValueError("walk_length must be > 1.")
+    if num_walks <= 0:
+        raise ValueError("num_walks must be > 0.")
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0.")
+    if p <= 0 or q <= 0:
+        raise ValueError("p and q must be > 0.")
+    if max_start_nodes is not None and max_start_nodes <= 0:
+        raise ValueError("max_start_nodes must be > 0 when provided.")
+    if max_cooccurrence_pairs <= 0:
+        raise ValueError("max_cooccurrence_pairs must be > 0.")
+
+    nodes = sorted(graph.nodes())
+    if not nodes:
+        raise ValueError("Cannot compute embeddings on an empty graph.")
+
+    rng = np.random.default_rng(seed)
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+    n_nodes = len(nodes)
+
+    # Precompute neighborhood lists once to reduce overhead during walks.
+    neighbors = {node: list(graph.neighbors(node)) for node in nodes}
+
+    def _next_step(prev_node: str | None, curr_node: str) -> str | None:
+        curr_neighbors = neighbors.get(curr_node, [])
+        if not curr_neighbors:
+            return None
+        if prev_node is None:
+            probs = np.full(len(curr_neighbors), 1.0 / len(curr_neighbors))
+            return curr_neighbors[int(rng.choice(len(curr_neighbors), p=probs))]
+
+        weights = []
+        for candidate in curr_neighbors:
+            edge_weight = float(graph[curr_node][candidate].get("weight", 1.0))
+            if candidate == prev_node:
+                bias = 1.0 / p
+            elif graph.has_edge(candidate, prev_node):
+                bias = 1.0
+            else:
+                bias = 1.0 / q
+            weights.append(edge_weight * bias)
+
+        probs = np.asarray(weights, dtype=float)
+        probs_sum = probs.sum()
+        if probs_sum <= 0:
+            probs = np.full(len(curr_neighbors), 1.0 / len(curr_neighbors))
+        else:
+            probs = probs / probs_sum
+        return curr_neighbors[int(rng.choice(len(curr_neighbors), p=probs))]
+
+    start_node_pool = nodes
+    if max_start_nodes is not None and len(nodes) > max_start_nodes:
+        # Limit starting points to keep runtime bounded on large graphs.
+        start_node_pool = sorted(
+            rng.choice(nodes, size=max_start_nodes, replace=False).tolist()
+        )
+
+    walks: list[list[str]] = []
+    for _ in range(num_walks):
+        start_nodes = start_node_pool.copy()
+        rng.shuffle(start_nodes)
+        for start in start_nodes:
+            walk = [start]
+            prev = None
+            curr = start
+            for _ in range(walk_length - 1):
+                nxt = _next_step(prev, curr)
+                if nxt is None:
+                    break
+                walk.append(nxt)
+                prev, curr = curr, nxt
+            walks.append(walk)
+
+    # Build a sparse co-occurrence matrix from random walks (skip-gram context window).
+    cooc_counts: dict[tuple[int, int], float] = {}
+    for walk in walks:
+        walk_len = len(walk)
+        for i, center in enumerate(walk):
+            center_idx = node_to_idx[center]
+            left = max(0, i - window_size)
+            right = min(walk_len, i + window_size + 1)
+            for j in range(left, right):
+                if i == j:
+                    continue
+                context_idx = node_to_idx[walk[j]]
+                key = (center_idx, context_idx)
+                cooc_counts[key] = cooc_counts.get(key, 0.0) + 1.0
+
+    if not cooc_counts:
+        cooc = sp.csr_matrix((n_nodes, n_nodes), dtype=float)
+    else:
+        if len(cooc_counts) > max_cooccurrence_pairs:
+            # Keep only the strongest co-occurrences to bound memory/time.
+            top_pairs = heapq.nlargest(
+                max_cooccurrence_pairs,
+                cooc_counts.items(),
+                key=lambda item: item[1],
+            )
+            cooc_counts = dict(top_pairs)
+        rows, cols, data = zip(
+            *((i, j, v) for (i, j), v in cooc_counts.items())
+        )
+        cooc = sp.csr_matrix((data, (rows, cols)), shape=(n_nodes, n_nodes), dtype=float)
+
+    total = float(cooc.sum())
+    if total <= 0:
+        # Fallback for fully disconnected graphs.
+        embedding_matrix = np.zeros((n_nodes, dimensions), dtype=float)
+    else:
+        # Normalize co-occurrences row-wise and project to a dense latent space.
+        row_sums = np.asarray(cooc.sum(axis=1)).ravel()
+        inv_row_sums = np.zeros_like(row_sums, dtype=float)
+        nonzero_rows = row_sums > 0
+        inv_row_sums[nonzero_rows] = 1.0 / row_sums[nonzero_rows]
+        normalized_cooc = sp.diags(inv_row_sums) @ cooc
+
+        random_projection = rng.normal(
+            loc=0.0,
+            scale=1.0 / max(1, dimensions),
+            size=(n_nodes, dimensions),
+        )
+        embedding_matrix = normalized_cooc @ random_projection
+        embedding_matrix = np.asarray(embedding_matrix, dtype=float)
+
+        # L2 normalize each embedding vector for numerical stability.
+        norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
+        nonzero_norms = norms.squeeze() > 0
+        embedding_matrix[nonzero_norms] = (
+            embedding_matrix[nonzero_norms] / norms[nonzero_norms]
+        )
+
+    rows = []
+    for node in nodes:
+        node_idx = node_to_idx[node]
+        attrs = graph.nodes[node]
+        node_type = attrs.get("bipartite", "unknown")
+        row = {"node_id": node, "node_type": node_type}
+        for dim_idx in range(dimensions):
+            row[f"emb_{dim_idx + 1}"] = float(embedding_matrix[node_idx, dim_idx])
+        rows.append(row)
+
+    embeddings_df = pd.DataFrame(rows)
+
+    if output_path is None:
+        output_path = Path(__file__).resolve().parent / "results" / "embedding" / "node_embeddings.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_df.to_csv(output_path, index=False)
+    return embeddings_df
 
 
 def build_drug_similarity_network(
@@ -187,6 +363,105 @@ def build_drug_similarity_network(
     )
 
     return G
+
+
+def build_cosine_similarity_network_from_node2vec_embeddings(
+    embedding_path: Path | str | None = None,
+    cosine_threshold: float = 0.75,
+    output_path: Path | str | None = None,
+    block_size: int = 256,
+) -> tuple[nx.Graph, dict[str, float | int], Path]:
+    """Build a cosine-similarity network from node2vec embeddings CSV.
+
+    The input CSV is expected to contain at least:
+    - ``node_id`` column
+    - one or more embedding columns named ``emb_*``
+    """
+
+    if cosine_threshold < -1.0 or cosine_threshold > 1.0:
+        raise ValueError("cosine_threshold must be in [-1, 1].")
+    if block_size <= 0:
+        raise ValueError("block_size must be > 0.")
+
+    if embedding_path is None:
+        embedding_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "embedding"
+            / "node_embeddings.csv"
+        )
+    embedding_path = Path(embedding_path)
+    if not embedding_path.exists():
+        raise FileNotFoundError(f"Embedding file not found at {embedding_path}")
+
+    embeddings_df = pd.read_csv(embedding_path)
+    if "node_id" not in embeddings_df.columns:
+        raise ValueError("Embedding file must contain a 'node_id' column.")
+
+    emb_cols = [col for col in embeddings_df.columns if col.startswith("emb_")]
+    if not emb_cols:
+        raise ValueError("Embedding file must contain embedding columns named 'emb_*'.")
+
+    node_ids = embeddings_df["node_id"].astype(str).tolist()
+    node_attrs = embeddings_df.drop(columns=emb_cols).set_index("node_id")
+
+    emb_matrix = embeddings_df[emb_cols].to_numpy(dtype=float)
+    if emb_matrix.size == 0:
+        raise ValueError("Embedding matrix is empty.")
+
+    # Robust L2 normalization ensures cosine == dot product.
+    norms = np.linalg.norm(emb_matrix, axis=1, keepdims=True)
+    nonzero = norms.squeeze() > 0
+    emb_matrix[nonzero] = emb_matrix[nonzero] / norms[nonzero]
+
+    graph = nx.Graph()
+    for node in node_ids:
+        attrs = node_attrs.loc[node].to_dict() if node in node_attrs.index else {}
+        cleaned_attrs = {
+            str(key): (value.item() if isinstance(value, np.generic) else value)
+            for key, value in attrs.items()
+            if not pd.isna(value)
+        }
+        graph.add_node(node, **cleaned_attrs)
+
+    n_nodes = len(node_ids)
+    for start in range(0, n_nodes, block_size):
+        end = min(start + block_size, n_nodes)
+        similarities = emb_matrix[start:end] @ emb_matrix.T
+        for local_idx, source_idx in enumerate(range(start, end)):
+            row = similarities[local_idx]
+            row[: source_idx + 1] = -np.inf
+            target_indices = np.flatnonzero(row >= cosine_threshold)
+            for target_idx in target_indices:
+                graph.add_edge(
+                    node_ids[source_idx],
+                    node_ids[int(target_idx)],
+                    weight=float(row[target_idx]),
+                )
+
+    if output_path is None:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "similarity"
+            / "global_parameters.json"
+        )
+    global_params, saved_output_path = save_similarity_global_parameters(
+        graph,
+        output_path=output_path,
+        weight_attr="weight",
+    )
+
+    graph.graph.update(
+        {
+            "similarity_metric": "cosine",
+            "cosine_threshold": cosine_threshold,
+            "embedding_path": str(embedding_path),
+            "global_parameters_path": str(saved_output_path),
+        }
+    )
+
+    return graph, global_params, saved_output_path
 
 
 def build_gene_cooccurrence_network(

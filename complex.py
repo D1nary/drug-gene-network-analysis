@@ -13,6 +13,8 @@ import pandas as pd
 
 from network import (
     build_drug_target_network,
+    build_node2vec_embeddings,
+    build_cosine_similarity_network_from_node2vec_embeddings,
     build_gene_cooccurrence_network,
     build_drug_similarity_network,
     build_community_network,
@@ -68,26 +70,51 @@ def read_targets(path: Path) -> pd.DataFrame:
     return df
 
 
+def preprocess_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Syntactically clean and normalize Drug/Gene identifiers.
+
+    Steps:
+    - remove commented/header-like rows,
+    - strip spaces and empty values,
+    - remove identifier prefixes (e.g. CID),
+    - convert identifiers to numeric values,
+    - drop incomplete and duplicated rows.
+    """
+
+    required_cols = {"Drug", "Gene"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError(
+            f"DataFrame must contain columns {required_cols}, "
+            f"but has {set(df.columns)}."
+        )
+
+    tmp = df[["Drug", "Gene"]].copy()
+
+    # Initial syntactic cleaning: remove comments/artifacts and trim spaces.
+    tmp["Drug"] = tmp["Drug"].astype(str).str.strip()
+    tmp["Gene"] = tmp["Gene"].astype(str).str.strip()
+    tmp = tmp[~tmp["Drug"].str.startswith("#")]
+    tmp = tmp.replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
+    tmp = tmp.dropna(subset=["Drug", "Gene"])
+
+    # Identifier normalization: strip CID-like prefixes and convert to numbers.
+    tmp["Drug"] = tmp["Drug"].str.replace("CID", "", regex=False).str.strip()
+    tmp["Drug"] = pd.to_numeric(tmp["Drug"], errors="coerce")
+    tmp["Gene"] = pd.to_numeric(tmp["Gene"], errors="coerce")
+    tmp = tmp.dropna(subset=["Drug", "Gene"])
+
+    # Canonical numeric formats for downstream graph creation.
+    tmp["Drug"] = tmp["Drug"].astype(int)
+    tmp["Gene"] = tmp["Gene"].astype(float)
+
+    # Remove duplicates to avoid artificial node/edge inflation.
+    tmp = tmp.drop_duplicates(subset=["Drug", "Gene"]).reset_index(drop=True)
+    return tmp
+
+
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean, normalize, and deduplicate the dataset."""
-
-    # Remove any rows that still look like commented headers
-    df = df[~df["Drug"].astype(str).str.startswith("#")]
-
-    # Keep only rows with both Drug and Gene values
-    df = df.dropna(subset=["Drug", "Gene"])
-
-    # Normalize text spacing and types up front
-    df["Drug"] = df["Drug"].astype(str).str.strip()
-    df["Gene"] = pd.to_numeric(df["Gene"], errors="coerce").astype(float)
-
-    # Avoid repeated Drug-Gene pairs
-    df = df.drop_duplicates(subset=["Drug", "Gene"])
-
-    # Strip the CID prefix and turn Drug into an integer identifier for future analysis
-    df["Drug"] = df["Drug"].str.replace("CID", "", regex=False).astype(int)
-
-    return df
+    """Backward-compatible alias for dataset preprocessing."""
+    return preprocess_dataset(df)
 
 
 def describe(df: pd.DataFrame) -> None:
@@ -231,6 +258,21 @@ def build_and_save_community_dag(
     )
 
 
+def _optional_positive_int(value: str) -> int | None:
+    lowered = value.strip().lower()
+    if lowered in {"none", "null", "all"}:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"Invalid integer value: {value}"
+        ) from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("Value must be > 0 or None.")
+    return parsed
+
+
 def parse_args() -> argparse.Namespace:
     # Build the CLI interface for selecting alternative dataset paths
     parser = argparse.ArgumentParser(
@@ -303,6 +345,12 @@ def parse_args() -> argparse.Namespace:
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
+        "--cosine-threshold",
+        type=float,
+        default=0.75,
+        help="Cosine similarity threshold for building similarity network from node2vec embeddings.",
+    )
+    parser.add_argument(
         "--laplacian-community-min-size",
         type=int,
         default=4,
@@ -318,6 +366,53 @@ def parse_args() -> argparse.Namespace:
             "(default: 21)."
         ),
     )
+    parser.add_argument(
+        "--embedding-dim",
+        type=int,
+        default=128,
+        help="Embedding vector size for Node2Vec (default: 128).",
+    )
+    parser.add_argument(
+        "--embedding-walk-length",
+        type=int,
+        default=10,
+        help="Random walk length for Node2Vec (default: 10).",
+    )
+    parser.add_argument(
+        "--embedding-num-walks",
+        type=int,
+        default=3,
+        help="Number of random walks per start node (default: 3).",
+    )
+    parser.add_argument(
+        "--embedding-window-size",
+        type=int,
+        default=3,
+        help="Context window size for co-occurrence collection (default: 3).",
+    )
+    parser.add_argument(
+        "--embedding-max-start-nodes",
+        type=_optional_positive_int,
+        default=15000,
+        help=(
+            "Max number of start nodes sampled for walks "
+            " Use 'None' to use all nodes."
+        ),
+    )
+    parser.add_argument(
+        "--embedding-max-cooccurrence-pairs",
+        type=int,
+        default=5_000_000,
+        help="Max retained co-occurrence pairs (default: 2000000).",
+    )
+    parser.add_argument(
+        "--run-embedding",
+        action="store_true",
+        help=(
+            "Run Node2Vec embedding generation before similarity network creation. "
+            "Default: disabled."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -325,249 +420,77 @@ def main() -> None:
     # Parse CLI options and resolve the dataset path
     args = parse_args()
     data_path = args.data_path.expanduser().resolve()
-    requested = set(args.networks)
 
     # Make sure the results directories exist before further processing
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "drug_gene").mkdir(parents=True, exist_ok=True)
-    COMMUNITY_DIR.mkdir(parents=True, exist_ok=True)
-    DAG_COMMUNITY_INFO_DIR.mkdir(parents=True, exist_ok=True)
-
-    for community_id in sorted(set(args.community_ids)):
-        community_dir = DAG_COMMUNITY_INFO_DIR / str(community_id)
-        community_dir.mkdir(parents=True, exist_ok=True)
-        (community_dir / "graph").mkdir(parents=True, exist_ok=True)
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset not found at {data_path}")
 
     # Load, clean, and summarize the source interaction table before graph construction.
     df = read_targets(data_path)
-    df = preprocess(df)
+    print("Perform pre-processing\n")
+    df = preprocess_dataset(df)
     describe(df)
 
     # Build the bipartite drug-target graph and save a representative spotlight snapshot.
     graph = build_drug_target_network(df)
     print_graph_sample(graph)
-    drug_spotlight = visualize_random_drug_target_subgraph(
+    bipartite_snapshot = visualize_random_drug_target_subgraph(
         graph,
-        title="Mid-degree drug spotlight",
+        title="bipartite_graph",
         focus="mid",
     )
     print(
-        "Mid-degree drug spotlight graph:",
-        f"{drug_spotlight.number_of_nodes()} nodes,",
-        f"{drug_spotlight.number_of_edges()} edges",
+        "Bipartite graph visualization:",
+        f"{bipartite_snapshot.number_of_nodes()} nodes,",
+        f"{bipartite_snapshot.number_of_edges()} edges",
     )
-    drug_param_paths = save_network_parameters(
-        drug_spotlight,
-        label="mid_degree_drug_spotlight",
-        output_root=RESULTS_DIR / "drug_gene",
+    embedding_output_path = RESULTS_DIR / "embedding" / "node_embeddings.csv"
+    if args.run_embedding:
+        print("\nPerform embedding algoritm")
+        embeddings_df = build_node2vec_embeddings(
+            graph,
+            dimensions=args.embedding_dim,
+            walk_length=args.embedding_walk_length,
+            num_walks=args.embedding_num_walks,
+            window_size=args.embedding_window_size,
+            max_start_nodes=args.embedding_max_start_nodes,
+            max_cooccurrence_pairs=args.embedding_max_cooccurrence_pairs,
+            output_path=embedding_output_path,
+        )
+        print(
+            "Node2Vec embeddings saved to",
+            embedding_output_path,
+            f"({len(embeddings_df)} nodes, {args.embedding_dim} dims)",
+        )
+    else:
+        print(
+            "Skipping Node2Vec embedding generation (--run-embedding not set).",
+            "Using existing embeddings at",
+            embedding_output_path,
+        )
+        if not embedding_output_path.exists():
+            raise FileNotFoundError(
+                "Embedding generation is disabled and no embedding file was found at "
+                f"{embedding_output_path}. Enable --run-embedding or provide the file."
+            )
+
+    similarity_graph, similarity_global_params, similarity_global_path = (
+        build_cosine_similarity_network_from_node2vec_embeddings(
+            embedding_path=embedding_output_path,
+            cosine_threshold=args.cosine_threshold,
+            output_path=RESULTS_DIR / "similarity" / "global_parameters.json",
+        )
     )
     print(
-        "Saved mid-degree spotlight parameters to",
-        drug_param_paths["global"].parent,
+        "Cosine similarity network built:",
+        f"{similarity_graph.number_of_nodes()} nodes,",
+        f"{similarity_graph.number_of_edges()} edges",
     )
-
-    similarity_graph = None
-    similarity_snapshot = None
-    community_graph = None
-    membership = {}
-    communities = []
-    if {"similarity", "community", "cooccurence"} & requested:
-        print("SIMILARITY NETWORK CREATION")
-        # Project drug-target data into a drug-drug similarity network with weighted edges.
-        similarity_threshold = 0.40
-        similarity_graph = build_drug_similarity_network(
-            df,
-            similarity_threshold=similarity_threshold,
-        )
-        # Collect filtering metadata for reproducibility in saved outputs.
-        filtering_details = {
-            "similarity_threshold": similarity_threshold,
-            "nodes_removed": similarity_graph.graph.get("removed_drugs"),
-            "edges_filtered": similarity_graph.graph.get("filtered_edges"),
-            "original_node_count": similarity_graph.graph.get("original_drug_count"),
-            "retained_node_count": similarity_graph.graph.get("retained_drug_count"),
-            "potential_edges": similarity_graph.graph.get("potential_edges"),
-        }
-        if similarity_graph.number_of_nodes() == 0:
-            print("Similarity graph is empty; skipping visualization.")
-        else:
-            # Save a bounded random snapshot to keep visualizations readable.
-            snapshot_seed = 2
-            similarity_snapshot = visualize_similarity_subgraph(
-                similarity_graph,
-                max_nodes=500,
-                title="Random drug similarity snapshot",
-                seed=snapshot_seed,
-                min_degree=args.similarity_min_degree,
-            )
-            similarity_param_paths = save_network_parameters(
-                similarity_graph,
-                label="similarity_network",
-                output_root=RESULTS_DIR / "similarity",
-                filtering_details=filtering_details,
-            )
-            print(
-                "Saved similarity network parameters to",
-                similarity_param_paths["global"].parent,
-            )
-
-    if {"community", "cooccurence"} & requested:
-        if similarity_graph is None or similarity_graph.number_of_nodes() == 0:
-            print("Community/co-occurrence requested but similarity graph is empty.")
-        else:
-            print("COMMUNITY NETWORK CREATION")
-            # Run Louvain on the similarity graph and annotate nodes with community labels.
-            community_graph, membership, communities = build_community_network(
-                similarity_graph,
-                weight="weight",
-                resolution=1.0,
-                seed=42,
-                min_clustering_size=args.community_min_size,
-            )
-
-    if "community" in requested:
-        if community_graph is None or community_graph.number_of_nodes() == 0:
-            print("Community requested but no communities were generated.")
-            return
-        community_count = len(communities)
-        largest = max((len(c) for c in communities), default=0)
-        print(
-            f"Louvain communities detected: {community_count} "
-            f"(largest size {largest})"
-        )
-
-        # Persist global community metrics and per-selected-community node details.
-        save_community_data(community_graph, COMMUNITY_METRICS_DIR)
-        total_targets = int(df["Gene"].nunique())
-        for community_id in sorted(set(args.community_ids)):
-            if community_id < 0 or community_id >= community_count:
-                print(
-                    f"Community id {community_id} out of range "
-                    f"(available: 0..{community_count - 1})."
-                )
-                continue
-            members = communities[community_id]
-            output_path = save_community_node_info(
-                community_id,
-                members,
-                similarity_graph,
-                total_targets,
-                DAG_COMMUNITY_INFO_DIR / str(community_id),
-            )
-            print(f"Saved community {community_id} node info to {output_path}")
-        laplacian_spectra = compute_community_normalized_laplacian_spectra(
-            similarity_graph,
-            communities,
-            min_size=args.laplacian_community_min_size,
-        )
-        # Store spectral signatures to compare structural differences among communities.
-        laplacian_path = save_community_normalized_laplacian_spectra(
-            laplacian_spectra,
-            RESULTS_DIR / "similarity" / "similarity_network",
-        )
-        print(f"Saved normalized Laplacian spectra to {laplacian_path}")
-        if args.community_density_threshold is not None:
-            # Export member lists and profile summaries only for dense/large communities.
-            drug_targets = {
-                node: data.get("targets", [])
-                for node, data in similarity_graph.nodes(data=True)
-                if data.get("bipartite") == "drug"
-            }
-            members_path = save_community_members_by_density(
-                community_graph,
-                args.community_density_threshold,
-                args.community_min_size,
-                COMMUNITY_METRICS_DIR,
-            )
-            print(
-                "Saved community member lists (density >= "
-                f"{args.community_density_threshold}, size >= "
-                f"{args.community_min_size}) to {members_path}"
-            )
-            summary_path = save_community_profile_summary(
-                community_graph,
-                drug_targets,
-                args.community_density_threshold,
-                args.community_min_size,
-                COMMUNITY_METRICS_DIR,
-            )
-            print(
-                "Saved community profile summary (density >= "
-                f"{args.community_density_threshold}, size >= "
-                f"{args.community_min_size}) to {summary_path}"
-            )
-
-        if similarity_snapshot is not None:
-            # Re-render the snapshot with community coloring for quick visual inspection.
-            visualize_similarity_subgraph(
-                similarity_snapshot,
-                max_nodes=similarity_snapshot.number_of_nodes(),
-                title="Drug similarity snapshot by community",
-                seed=snapshot_seed,
-                min_degree=-1,
-                community_membership=membership,
-                output_dir=COMMUNITY_DIR,
-                max_legend_items=20,
-                legend_columns=1,
-            )
-
-    if "cooccurence" in requested:
-        if not communities:
-            print("Co-occurrence requested but no communities were generated.")
-        else:
-            print("CO-OCCURRENCE NETWORK CREATION")
-            community_parameters = {}
-            # Build gene co-occurrence networks inside sufficiently large drug communities.
-            for idx, community in enumerate(communities):
-                if len(community) < args.cooccurrence_community_min_size:
-                    continue
-                label = f"Community_{idx}"
-                drug_ids = [
-                    int(node.replace("Drug_", ""))
-                    for node in community
-                    if str(node).startswith("Drug_")
-                ]
-                if not drug_ids:
-                    continue
-                community_df = df[df["Drug"].isin(drug_ids)]
-                cooccurrence_graph = build_gene_cooccurrence_network(
-                    community_df,
-                    min_drugs_per_gene=args.cooccurrence_min_drugs_per_gene,
-                    max_drugs_per_gene_percentile=args.cooccurrence_max_drugs_percentile,
-                )
-                params = compute_cooccurrence_parameters(
-                    cooccurrence_graph,
-                    weight_ge_threshold=1,
-                )
-                params["community_size"] = len(community)
-                community_parameters[label] = params
-
-            # Save per-community co-occurrence metrics in a single summary artifact.
-            cooccurrence_path = save_cooccurrence_parameters_by_community(
-                community_parameters
-            )
-            print(f"Saved co-occurrence parameters to {cooccurrence_path}")
-
-    # Build and save DAGs for explicitly requested community IDs (if available).
-    community_count = len(communities)
-    for community_id in sorted(set(args.community_ids)):
-        if community_count and (community_id < 0 or community_id >= community_count):
-            print(
-                f"Community id {community_id} out of range "
-                f"(available: 0..{community_count - 1})."
-            )
-            continue
-        build_and_save_community_dag(
-            community_id,
-            DAG_COMMUNITY_INFO_DIR / str(community_id),
-            min_set_difference=3,
-            min_depth=1,
-            max_depth=10,
-            remove_transitive_edges=True,
-        )
+    print("Similarity global parameters saved to", similarity_global_path)
+    print("Similarity summary:", similarity_global_params)
 
 
 
