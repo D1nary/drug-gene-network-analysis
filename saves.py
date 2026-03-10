@@ -246,6 +246,53 @@ def save_similarity_node_metrics(
     return node_df, output_path
 
 
+def compute_similarity_edge_list(
+    graph: nx.Graph,
+    weight_attr: str = "weight",
+) -> pd.DataFrame:
+    """Return one row per similarity edge with derived distance."""
+
+    columns = ["drug_1", "drug_2", "similarity", "distance"]
+    if graph.number_of_edges() == 0:
+        return pd.DataFrame(columns=columns)
+
+    records = []
+    for source, target, data in graph.edges(data=True):
+        similarity = float(data.get(weight_attr, 1.0))
+        records.append(
+            {
+                "drug_1": str(source),
+                "drug_2": str(target),
+                "similarity": similarity,
+                "distance": float(1.0 - similarity),
+            }
+        )
+
+    edge_df = pd.DataFrame(records, columns=columns)
+    return edge_df.sort_values(by=["drug_1", "drug_2"]).reset_index(drop=True)
+
+
+def save_similarity_edge_list(
+    graph: nx.Graph,
+    output_path: Path | str | None = None,
+    weight_attr: str = "weight",
+) -> tuple[pd.DataFrame, Path]:
+    """Compute and save the similarity edge list to CSV."""
+
+    edge_df = compute_similarity_edge_list(
+        graph,
+        weight_attr=weight_attr,
+    )
+
+    if output_path is None:
+        output_path = RESULTS_DIR / "similarity" / "edge_list.csv"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    edge_df.to_csv(output_path, index=False)
+
+    return edge_df, output_path
+
+
 def compute_node_parameters(
     graph: nx.Graph,
     weight_attr: str = "weight",

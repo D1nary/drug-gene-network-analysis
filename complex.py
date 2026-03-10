@@ -393,10 +393,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--embedding-max-start-nodes",
         type=_optional_positive_int,
-        default=15000,
+        default=None,
         help=(
             "Max number of start nodes sampled for walks "
-            " Use 'None' to use all nodes."
+            "Default: None (use all nodes)."
         ),
     )
     parser.add_argument(
@@ -411,6 +411,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Run Node2Vec embedding generation before similarity network creation. "
             "Default: disabled."
+        ),
+    )
+    parser.add_argument(
+        "--run-similarity",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Run cosine similarity network creation and save outputs under results/similarity. "
+            "Default: enabled (use --no-run-similarity to skip)."
         ),
     )
     return parser.parse_args()
@@ -477,20 +486,27 @@ def main() -> None:
                 f"{embedding_output_path}. Enable --run-embedding or provide the file."
             )
 
-    similarity_graph, similarity_global_params, similarity_global_path = (
-        build_cosine_similarity_network_from_node2vec_embeddings(
-            embedding_path=embedding_output_path,
-            cosine_threshold=args.cosine_threshold,
-            output_path=RESULTS_DIR / "similarity" / "global_parameters.json",
+    if args.run_similarity:
+        print("Similarity netwok creation:")
+        similarity_graph, similarity_global_params, similarity_global_path = (
+            build_cosine_similarity_network_from_node2vec_embeddings(
+                embedding_path=embedding_output_path,
+                cosine_threshold=args.cosine_threshold,
+                output_path=RESULTS_DIR / "similarity" / "global_parameters.json",
+            )
         )
-    )
-    print(
-        "Cosine similarity network built:",
-        f"{similarity_graph.number_of_nodes()} nodes,",
-        f"{similarity_graph.number_of_edges()} edges",
-    )
-    print("Similarity global parameters saved to", similarity_global_path)
-    print("Similarity summary:", similarity_global_params)
+        print(
+            "Cosine similarity network built:",
+            f"{similarity_graph.number_of_nodes()} nodes,",
+            f"{similarity_graph.number_of_edges()} edges",
+        )
+        print("Similarity global parameters saved to", similarity_global_path)
+        print("Similarity summary:", similarity_global_params)
+    else:
+        print(
+            "Skipping similarity network creation (--no-run-similarity set).",
+            "No similarity outputs were generated in this run.",
+        )
 
 
 

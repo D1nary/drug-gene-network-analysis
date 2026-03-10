@@ -13,6 +13,7 @@ import numpy as np
 import scipy.sparse as sp
 from saves import (
     compute_similarity_communities,
+    save_similarity_edge_list,
     save_similarity_global_parameters,
     save_similarity_node_metrics,
 )
@@ -97,10 +98,10 @@ def build_node2vec_embeddings(
     walk_length: int = 10,
     num_walks: int = 3,
     p: float = 1.0,
-    q: float = 1.0,
+    q: float = 0.5,
     window_size: int = 3,
     seed: int = 42,
-    max_start_nodes: int | None = 3000,
+    max_start_nodes: int | None = None,
     max_cooccurrence_pairs: int = 2_000_000,
     output_path: Path | None = None,
 ) -> pd.DataFrame:
@@ -472,6 +473,14 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
         community_seed=42,
         communities=communities,
     )
+    _, edge_list_output_path = save_similarity_edge_list(
+        graph,
+        output_path=Path(__file__).resolve().parent
+        / "results"
+        / "similarity"
+        / "edge_list.csv",
+        weight_attr="weight",
+    )
 
     graph.graph.update(
         {
@@ -480,6 +489,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
             "embedding_path": str(embedding_path),
             "global_parameters_path": str(saved_output_path),
             "node_metrics_path": str(node_metrics_output_path),
+            "edge_list_path": str(edge_list_output_path),
         }
     )
 
