@@ -11,7 +11,11 @@ import pandas as pd
 import networkx as nx
 import numpy as np
 import scipy.sparse as sp
-from saves import save_similarity_global_parameters
+from saves import (
+    compute_similarity_communities,
+    save_similarity_global_parameters,
+    save_similarity_node_metrics,
+)
 
 
 def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
@@ -446,10 +450,27 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
             / "similarity"
             / "global_parameters.json"
         )
+    communities = compute_similarity_communities(
+        graph,
+        weight_attr="weight",
+        seed=42,
+    )
     global_params, saved_output_path = save_similarity_global_parameters(
         graph,
         output_path=output_path,
         weight_attr="weight",
+        communities=communities,
+        community_seed=42,
+    )
+    _, node_metrics_output_path = save_similarity_node_metrics(
+        graph,
+        output_path=Path(__file__).resolve().parent
+        / "results"
+        / "similarity"
+        / "node_metrics.csv",
+        weight_attr="weight",
+        community_seed=42,
+        communities=communities,
     )
 
     graph.graph.update(
@@ -458,6 +479,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
             "cosine_threshold": cosine_threshold,
             "embedding_path": str(embedding_path),
             "global_parameters_path": str(saved_output_path),
+            "node_metrics_path": str(node_metrics_output_path),
         }
     )
 

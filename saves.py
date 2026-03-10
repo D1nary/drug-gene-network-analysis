@@ -79,6 +79,8 @@ def save_similarity_global_parameters(
     graph: nx.Graph,
     output_path: Path | str | None = None,
     weight_attr: str = "weight",
+    communities: list[set[object]] | None = None,
+    community_seed: int = 42,
 ) -> tuple[dict[str, float | int], Path]:
     """Compute and save global parameters for a cosine similarity network."""
 
@@ -100,10 +102,10 @@ def save_similarity_global_parameters(
         avg_path_length = 0.0
 
     if graph.number_of_nodes() > 0:
-        communities = nx.algorithms.community.louvain_communities(
+        communities = communities or compute_similarity_communities(
             graph,
-            weight=weight_attr,
-            seed=42,
+            weight_attr=weight_attr,
+            seed=community_seed,
         )
         modularity = float(
             nx.algorithms.community.modularity(
@@ -141,6 +143,107 @@ def save_similarity_global_parameters(
         json.dump(global_params, fh, indent=2, ensure_ascii=False)
 
     return global_params, output_path
+
+
+def compute_similarity_communities(
+    graph: nx.Graph,
+    weight_attr: str = "weight",
+    seed: int = 42,
+) -> list[set[object]]:
+    """Return Louvain communities for the similarity graph."""
+
+    if graph.number_of_nodes() == 0:
+        return []
+    if graph.number_of_edges() == 0:
+        return [{node} for node in sorted(graph.nodes())]
+    return nx.algorithms.community.louvain_communities(
+        graph,
+        weight=weight_attr,
+        seed=seed,
+    )
+
+
+def compute_similarity_node_metrics(
+    graph: nx.Graph,
+    weight_attr: str = "weight",
+    community_seed: int = 42,
+    communities: list[set[object]] | None = None,
+) -> pd.DataFrame:
+    """Compute per-node metrics required for similarity-network reporting."""
+
+    columns = [
+        "drug_id",
+        "degree",
+        "weighted_degree",
+        "betweenness",
+        "closeness",
+        "clustering",
+        "community_id",
+    ]
+    nodes = list(graph.nodes())
+    if not nodes:
+        return pd.DataFrame(columns=columns)
+
+    degree = dict(graph.degree())
+    weighted_degree = dict(graph.degree(weight=weight_attr))
+    clustering = nx.clustering(graph, weight=weight_attr)
+    # Keep shortest-path semantics unweighted; similarity weights are affinities.
+    betweenness = nx.betweenness_centrality(graph, weight=None)
+    closeness = nx.closeness_centrality(graph, distance=None)
+
+    if graph.number_of_nodes() == 0:
+        selected_communities: list[set[object]] = []
+    else:
+        selected_communities = communities or compute_similarity_communities(
+            graph,
+            weight_attr=weight_attr,
+            seed=community_seed,
+        )
+    community_membership: dict[object, int] = {}
+    for idx, community_nodes in enumerate(selected_communities):
+        for node in community_nodes:
+            community_membership[node] = idx
+
+    records = []
+    for node in nodes:
+        records.append(
+            {
+                "drug_id": str(node),
+                "degree": int(degree.get(node, 0)),
+                "weighted_degree": float(weighted_degree.get(node, 0.0)),
+                "betweenness": float(betweenness.get(node, 0.0)),
+                "closeness": float(closeness.get(node, 0.0)),
+                "clustering": float(clustering.get(node, 0.0)),
+                "community_id": int(community_membership.get(node, -1)),
+            }
+        )
+
+    return pd.DataFrame(records, columns=columns)
+
+
+def save_similarity_node_metrics(
+    graph: nx.Graph,
+    output_path: Path | str | None = None,
+    weight_attr: str = "weight",
+    community_seed: int = 42,
+    communities: list[set[object]] | None = None,
+) -> tuple[pd.DataFrame, Path]:
+    """Compute and save per-node similarity metrics to CSV."""
+
+    node_df = compute_similarity_node_metrics(
+        graph,
+        weight_attr=weight_attr,
+        community_seed=community_seed,
+        communities=communities,
+    )
+
+    if output_path is None:
+        output_path = RESULTS_DIR / "similarity" / "node_metrics.csv"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    node_df.to_csv(output_path, index=False)
+
+    return node_df, output_path
 
 
 def compute_node_parameters(
