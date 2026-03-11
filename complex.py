@@ -341,7 +341,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--similarity-min-degree",
         type=int,
-        default=0,
+        default=10,
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
@@ -416,10 +416,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Run cosine similarity network creation and save outputs under results/similarity. "
             "Default: enabled (use --no-run-similarity to skip)."
+        ),
+    )
+    parser.add_argument(
+        "--run-similarity-visualization",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Create similarity network visualization from results/similarity outputs. "
+            "Default: enabled (use --no-run-similarity-visualization to skip)."
         ),
     )
     return parser.parse_args()
@@ -506,6 +515,22 @@ def main() -> None:
         print(
             "Skipping similarity network creation (--no-run-similarity set).",
             "No similarity outputs were generated in this run.",
+        )
+
+    if args.run_similarity_visualization:
+        similarity_snapshot = visualize_similarity_subgraph(
+            min_degree=args.similarity_min_degree,
+            title="similarity_network",
+        )
+        print(
+            "Similarity network visualization:",
+            f"{similarity_snapshot.number_of_nodes()} nodes,",
+            f"{similarity_snapshot.number_of_edges()} edges",
+        )
+    else:
+        print(
+            "Skipping similarity network visualization "
+            "(--no-run-similarity-visualization set)."
         )
 
 
