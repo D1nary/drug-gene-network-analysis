@@ -39,6 +39,7 @@ from visualizzation import (
     visualize_similarity_subgraph,
     visualize_community_dag,
 )
+from measurament import compute_community_measuraments
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -341,14 +342,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--similarity-min-degree",
         type=int,
-        default=10,
+        default=0,
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
         "--cosine-threshold",
         type=float,
         default=0.75,
-        help="Cosine similarity threshold for building similarity network from node2vec embeddings.",
+        help="Cosine threshold in [0,1] for drug-drug similarity on node2vec embeddings.",
+    )
+    parser.add_argument(
+        "--similarity-path-centralities",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Whether to compute asnd save similarity-node betweenness/closeness "
+            "centralities. Disable to skip their calculation."
+        ),
     )
     parser.add_argument(
         "--laplacian-community-min-size",
@@ -388,7 +398,7 @@ def parse_args() -> argparse.Namespace:
         "--embedding-window-size",
         type=int,
         default=3,
-        help="Context window size for co-occurrence collection (default: 3).",
+        help="Context window size for Skip-gram training (default: 3).",
     )
     parser.add_argument(
         "--embedding-max-start-nodes",
@@ -400,35 +410,46 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--embedding-max-cooccurrence-pairs",
+        "--embedding-epochs",
         type=int,
-        default=5_000_000,
-        help="Max retained co-occurrence pairs (default: 2000000).",
+        default=5,
+        help="Skip-gram training epochs for Node2Vec (default: 5).",
     )
     parser.add_argument(
         "--run-embedding",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help=(
             "Run Node2Vec embedding generation before similarity network creation. "
-            "Default: disabled."
+            "Default: enabled (use --no-run-embedding to skip)."
         ),
     )
     parser.add_argument(
         "--run-similarity",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
-            "Run cosine similarity network creation and save outputs under results/similarity. "
-            "Default: enabled (use --no-run-similarity to skip)."
+            "Run drug-drug similarity network creation from embeddings and save outputs "
+            "under results/similarity. Default: disabled."
         ),
     )
     parser.add_argument(
         "--run-similarity-visualization",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Create similarity network visualization from results/similarity outputs. "
             "Default: enabled (use --no-run-similarity-visualization to skip)."
+        ),
+    )
+    parser.add_argument(
+        "--run-measurament",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Compute and save per-community measurament metrics from "
+            "results/similarity/node_metrics.csv and edge_list.csv. "
+            "Default: enabled (use --no-run-measurament to skip)."
         ),
     )
     return parser.parse_args()
@@ -437,7 +458,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     # Parse CLI options and resolve the dataset path
     args = parse_args()
-    data_path = args.data_path.expanduser().resolve()
+    data_path = args.data_path.expanduser().resolve()  
 
     # Make sure the results directories exist before further processing
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -474,8 +495,8 @@ def main() -> None:
             walk_length=args.embedding_walk_length,
             num_walks=args.embedding_num_walks,
             window_size=args.embedding_window_size,
+            epochs=args.embedding_epochs,
             max_start_nodes=args.embedding_max_start_nodes,
-            max_cooccurrence_pairs=args.embedding_max_cooccurrence_pairs,
             output_path=embedding_output_path,
         )
         print(
@@ -485,7 +506,7 @@ def main() -> None:
         )
     else:
         print(
-            "Skipping Node2Vec embedding generation (--run-embedding not set).",
+            "Skipping Node2Vec embedding generation (--no-run-embedding set).",
             "Using existing embeddings at",
             embedding_output_path,
         )
@@ -502,10 +523,11 @@ def main() -> None:
                 embedding_path=embedding_output_path,
                 cosine_threshold=args.cosine_threshold,
                 output_path=RESULTS_DIR / "similarity" / "global_parameters.json",
+                include_path_centralities=args.similarity_path_centralities,
             )
         )
         print(
-            "Cosine similarity network built:",
+            "Drug-drug similarity network built:",
             f"{similarity_graph.number_of_nodes()} nodes,",
             f"{similarity_graph.number_of_edges()} edges",
         )
@@ -532,6 +554,38 @@ def main() -> None:
             "Skipping similarity network visualization "
             "(--no-run-similarity-visualization set)."
         )
+
+    if args.run_measurament:
+        node_metrics_path = RESULTS_DIR / "similarity" / "node_metrics.csv"
+        edge_list_path = RESULTS_DIR / "similarity" / "edge_list.csv"
+        measurament_output_path = (
+            RESULTS_DIR / "similarity" / "community_measurament.csv"
+        )
+
+        if not node_metrics_path.exists():
+            raise FileNotFoundError(
+                "Measurament step enabled but node metrics file was not found at "
+                f"{node_metrics_path}."
+            )
+        if not edge_list_path.exists():
+            raise FileNotFoundError(
+                "Measurament step enabled but edge list file was not found at "
+                f"{edge_list_path}."
+            )
+
+        measurament_df = compute_community_measuraments(
+            node_metrics_path=node_metrics_path,
+            edge_list_path=edge_list_path,
+        )
+        measurament_output_path.parent.mkdir(parents=True, exist_ok=True)
+        measurament_df.to_csv(measurament_output_path, index=False)
+        print(
+            "Community measurament metrics saved to",
+            measurament_output_path,
+            f"({len(measurament_df)} communities)",
+        )
+    else:
+        print("Skipping measurament step (--no-run-measurament set).")
 
 
 

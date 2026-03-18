@@ -293,7 +293,7 @@ def visualize_similarity_subgraph(
     title: Optional[str] = None,
     seed: Optional[int] = None,
     min_degree: int = 10,
-    max_nodes: int = 1000,
+    max_nodes: Optional[int] = None,
     community_membership: Optional[dict[str, str]] = None,
     output_dir: Optional[Path] = None,
     max_legend_items: int = 25,
@@ -316,7 +316,7 @@ def visualize_similarity_subgraph(
         Minimum node degree required for inclusion. Default 10.
     max_nodes : int, optional
         Maximum number of randomly sampled nodes to visualize after degree filtering.
-        Default 1000.
+        Default ``None`` (no node cap).
     community_membership : dict, optional
         Mapping from node name to community label. When provided, nodes are colored
         by community instead of degree. If omitted, communities are loaded from
@@ -394,11 +394,11 @@ def visualize_similarity_subgraph(
             f"Similarity graph has no nodes with degree >= {min_degree}; cannot visualize."
         )
 
-    if max_nodes <= 0:
-        raise ValueError("max_nodes must be > 0.")
-
     selected_nodes = nodes
-    if len(nodes) > max_nodes:
+    if max_nodes is not None and max_nodes <= 0:
+        raise ValueError("max_nodes must be > 0 when provided.")
+
+    if max_nodes is not None and len(nodes) > max_nodes:
         rng = random.Random(seed)
         selected_nodes = sorted(rng.sample(nodes, max_nodes))
 

@@ -42,3 +42,9 @@ Finally, for selected communities, the project builds a **Directed Acyclic Graph
 2. Run `complex.py` with desired CLI options.
 3. Inspect artifacts in `results/` (JSON/CSV metrics + PNG figures).
 4. Use `notes/` for report integration and interpretation material.
+
+## Embedding dependency
+
+Classic Node2Vec embedding generation uses biased random walks plus Skip-gram
+training through `gensim`'s `Word2Vec` implementation. Install `gensim`
+before running the embedding stage.

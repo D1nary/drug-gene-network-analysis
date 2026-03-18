@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Utilities to build a Drug–Target bipartite network from 
+"""Utilities to build a Drug-Target bipartite network from
 the ChG-InterDecagon targets dataset."""
 
 from __future__ import annotations
 
-import heapq
 from itertools import combinations
 from pathlib import Path
 import pandas as pd
 import networkx as nx
 import numpy as np
-import scipy.sparse as sp
+try:
+    from gensim.models import Word2Vec
+except ImportError:
+    Word2Vec = None
 from saves import (
     compute_similarity_communities,
     save_similarity_edge_list,
@@ -97,20 +99,25 @@ def build_node2vec_embeddings(
     dimensions: int = 128,
     walk_length: int = 10,
     num_walks: int = 3,
-    p: float = 1.0,
-    q: float = 0.5,
+    p: float = 2.0,
+    q: float = 4.0,
     window_size: int = 3,
+    epochs: int = 5,
     seed: int = 42,
     max_start_nodes: int | None = None,
-    max_cooccurrence_pairs: int = 2_000_000,
     output_path: Path | None = None,
 ) -> pd.DataFrame:
-    """Compute Node2Vec-style embeddings and save them to CSV.
+    """Compute classic Node2Vec embeddings and save them to CSV.
 
     The output schema is:
     ``node_id,node_type,emb_1,...,emb_d`` where ``d = dimensions``.
     """
 
+    if Word2Vec is None:
+        raise ImportError(
+            "gensim is required to train classic Node2Vec embeddings. "
+            "Install it with `pip install gensim`."
+        )
     if dimensions <= 0:
         raise ValueError("dimensions must be > 0.")
     if walk_length <= 1:
@@ -121,10 +128,10 @@ def build_node2vec_embeddings(
         raise ValueError("window_size must be > 0.")
     if p <= 0 or q <= 0:
         raise ValueError("p and q must be > 0.")
+    if epochs <= 0:
+        raise ValueError("epochs must be > 0.")
     if max_start_nodes is not None and max_start_nodes <= 0:
         raise ValueError("max_start_nodes must be > 0 when provided.")
-    if max_cooccurrence_pairs <= 0:
-        raise ValueError("max_cooccurrence_pairs must be > 0.")
 
     nodes = sorted(graph.nodes())
     if not nodes:
@@ -187,63 +194,28 @@ def build_node2vec_embeddings(
                 prev, curr = curr, nxt
             walks.append(walk)
 
-    # Build a sparse co-occurrence matrix from random walks (skip-gram context window).
-    cooc_counts: dict[tuple[int, int], float] = {}
-    for walk in walks:
-        walk_len = len(walk)
-        for i, center in enumerate(walk):
-            center_idx = node_to_idx[center]
-            left = max(0, i - window_size)
-            right = min(walk_len, i + window_size + 1)
-            for j in range(left, right):
-                if i == j:
-                    continue
-                context_idx = node_to_idx[walk[j]]
-                key = (center_idx, context_idx)
-                cooc_counts[key] = cooc_counts.get(key, 0.0) + 1.0
+    model = Word2Vec(
+        sentences=walks,
+        vector_size=dimensions,
+        window=window_size,
+        min_count=0,
+        sg=1,
+        workers=1,
+        epochs=epochs,
+        seed=seed,
+    )
 
-    if not cooc_counts:
-        cooc = sp.csr_matrix((n_nodes, n_nodes), dtype=float)
-    else:
-        if len(cooc_counts) > max_cooccurrence_pairs:
-            # Keep only the strongest co-occurrences to bound memory/time.
-            top_pairs = heapq.nlargest(
-                max_cooccurrence_pairs,
-                cooc_counts.items(),
-                key=lambda item: item[1],
-            )
-            cooc_counts = dict(top_pairs)
-        rows, cols, data = zip(
-            *((i, j, v) for (i, j), v in cooc_counts.items())
-        )
-        cooc = sp.csr_matrix((data, (rows, cols)), shape=(n_nodes, n_nodes), dtype=float)
+    embedding_matrix = np.zeros((n_nodes, dimensions), dtype=float)
+    for node in nodes:
+        if node in model.wv:
+            embedding_matrix[node_to_idx[node]] = model.wv[node]
 
-    total = float(cooc.sum())
-    if total <= 0:
-        # Fallback for fully disconnected graphs.
-        embedding_matrix = np.zeros((n_nodes, dimensions), dtype=float)
-    else:
-        # Normalize co-occurrences row-wise and project to a dense latent space.
-        row_sums = np.asarray(cooc.sum(axis=1)).ravel()
-        inv_row_sums = np.zeros_like(row_sums, dtype=float)
-        nonzero_rows = row_sums > 0
-        inv_row_sums[nonzero_rows] = 1.0 / row_sums[nonzero_rows]
-        normalized_cooc = sp.diags(inv_row_sums) @ cooc
-
-        random_projection = rng.normal(
-            loc=0.0,
-            scale=1.0 / max(1, dimensions),
-            size=(n_nodes, dimensions),
-        )
-        embedding_matrix = normalized_cooc @ random_projection
-        embedding_matrix = np.asarray(embedding_matrix, dtype=float)
-
-        # L2 normalize each embedding vector for numerical stability.
-        norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
-        nonzero_norms = norms.squeeze() > 0
-        embedding_matrix[nonzero_norms] = (
-            embedding_matrix[nonzero_norms] / norms[nonzero_norms]
-        )
+    # L2 normalize each embedding vector for numerical stability.
+    norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
+    nonzero_norms = norms.squeeze() > 0
+    embedding_matrix[nonzero_norms] = (
+        embedding_matrix[nonzero_norms] / norms[nonzero_norms]
+    )
 
     rows = []
     for node in nodes:
@@ -375,16 +347,21 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
     cosine_threshold: float = 0.75,
     output_path: Path | str | None = None,
     block_size: int = 256,
+    include_path_centralities: bool = True,
 ) -> tuple[nx.Graph, dict[str, float | int], Path]:
-    """Build a cosine-similarity network from node2vec embeddings CSV.
+    """Build a drug-drug network from node2vec embeddings.
+
+    Workflow:
+    - keep only drug nodes from the embeddings file;
+    - connect two drugs when cosine(drug_i, drug_j) >= threshold.
 
     The input CSV is expected to contain at least:
     - ``node_id`` column
     - one or more embedding columns named ``emb_*``
     """
 
-    if cosine_threshold < -1.0 or cosine_threshold > 1.0:
-        raise ValueError("cosine_threshold must be in [-1, 1].")
+    if cosine_threshold < 0.0 or cosine_threshold > 1.0:
+        raise ValueError("cosine_threshold must be in [0, 1].")
     if block_size <= 0:
         raise ValueError("block_size must be > 0.")
 
@@ -408,6 +385,13 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
         raise ValueError("Embedding file must contain embedding columns named 'emb_*'.")
 
     node_ids = embeddings_df["node_id"].astype(str).tolist()
+    node_id_series = embeddings_df["node_id"].astype(str)
+    if "node_type" in embeddings_df.columns:
+        node_type_series = embeddings_df["node_type"].astype(str).str.lower()
+    else:
+        node_type_series = pd.Series("unknown", index=embeddings_df.index)
+        node_type_series[node_id_series.str.startswith("Drug_")] = "drug"
+        node_type_series[node_id_series.str.startswith("Gene_")] = "gene"
     node_attrs = embeddings_df.drop(columns=emb_cols).set_index("node_id")
 
     emb_matrix = embeddings_df[emb_cols].to_numpy(dtype=float)
@@ -419,28 +403,35 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
     nonzero = norms.squeeze() > 0
     emb_matrix[nonzero] = emb_matrix[nonzero] / norms[nonzero]
 
+    drug_indices = np.flatnonzero(node_type_series.to_numpy() == "drug")
+    if drug_indices.size == 0:
+        raise ValueError("Embedding file does not contain drug nodes.")
+
+    drug_node_ids = [node_ids[int(idx)] for idx in drug_indices]
+    drug_matrix = emb_matrix[drug_indices]
+
     graph = nx.Graph()
-    for node in node_ids:
-        attrs = node_attrs.loc[node].to_dict() if node in node_attrs.index else {}
+    for drug_id in drug_node_ids:
+        attrs = node_attrs.loc[drug_id].to_dict() if drug_id in node_attrs.index else {}
         cleaned_attrs = {
             str(key): (value.item() if isinstance(value, np.generic) else value)
             for key, value in attrs.items()
             if not pd.isna(value)
         }
-        graph.add_node(node, **cleaned_attrs)
+        graph.add_node(drug_id, **cleaned_attrs)
 
-    n_nodes = len(node_ids)
-    for start in range(0, n_nodes, block_size):
-        end = min(start + block_size, n_nodes)
-        similarities = emb_matrix[start:end] @ emb_matrix.T
+    n_drugs = len(drug_node_ids)
+    for start in range(0, n_drugs, block_size):
+        end = min(start + block_size, n_drugs)
+        similarities = drug_matrix[start:end] @ drug_matrix.T
         for local_idx, source_idx in enumerate(range(start, end)):
             row = similarities[local_idx]
             row[: source_idx + 1] = -np.inf
             target_indices = np.flatnonzero(row >= cosine_threshold)
             for target_idx in target_indices:
                 graph.add_edge(
-                    node_ids[source_idx],
-                    node_ids[int(target_idx)],
+                    drug_node_ids[source_idx],
+                    drug_node_ids[int(target_idx)],
                     weight=float(row[target_idx]),
                 )
 
@@ -472,6 +463,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
         weight_attr="weight",
         community_seed=42,
         communities=communities,
+        include_path_centralities=include_path_centralities,
     )
     _, edge_list_output_path = save_similarity_edge_list(
         graph,
@@ -484,7 +476,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
 
     graph.graph.update(
         {
-            "similarity_metric": "cosine",
+            "similarity_metric": "cosine_on_drug_embeddings",
             "cosine_threshold": cosine_threshold,
             "embedding_path": str(embedding_path),
             "global_parameters_path": str(saved_output_path),

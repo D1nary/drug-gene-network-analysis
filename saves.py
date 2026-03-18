@@ -168,6 +168,7 @@ def compute_similarity_node_metrics(
     weight_attr: str = "weight",
     community_seed: int = 42,
     communities: list[set[object]] | None = None,
+    include_path_centralities: bool = True,
 ) -> pd.DataFrame:
     """Compute per-node metrics required for similarity-network reporting."""
 
@@ -175,11 +176,12 @@ def compute_similarity_node_metrics(
         "drug_id",
         "degree",
         "weighted_degree",
-        "betweenness",
-        "closeness",
         "clustering",
         "community_id",
     ]
+    if include_path_centralities:
+        columns.insert(3, "betweenness")
+        columns.insert(4, "closeness")
     nodes = list(graph.nodes())
     if not nodes:
         return pd.DataFrame(columns=columns)
@@ -187,9 +189,13 @@ def compute_similarity_node_metrics(
     degree = dict(graph.degree())
     weighted_degree = dict(graph.degree(weight=weight_attr))
     clustering = nx.clustering(graph, weight=weight_attr)
-    # Keep shortest-path semantics unweighted; similarity weights are affinities.
-    betweenness = nx.betweenness_centrality(graph, weight=None)
-    closeness = nx.closeness_centrality(graph, distance=None)
+    if include_path_centralities:
+        # Keep shortest-path semantics unweighted; similarity weights are affinities.
+        betweenness = nx.betweenness_centrality(graph, weight=None)
+        closeness = nx.closeness_centrality(graph, distance=None)
+    else:
+        betweenness = {}
+        closeness = {}
 
     if graph.number_of_nodes() == 0:
         selected_communities: list[set[object]] = []
@@ -206,17 +212,17 @@ def compute_similarity_node_metrics(
 
     records = []
     for node in nodes:
-        records.append(
-            {
-                "drug_id": str(node),
-                "degree": int(degree.get(node, 0)),
-                "weighted_degree": float(weighted_degree.get(node, 0.0)),
-                "betweenness": float(betweenness.get(node, 0.0)),
-                "closeness": float(closeness.get(node, 0.0)),
-                "clustering": float(clustering.get(node, 0.0)),
-                "community_id": int(community_membership.get(node, -1)),
-            }
-        )
+        record = {
+            "drug_id": str(node),
+            "degree": int(degree.get(node, 0)),
+            "weighted_degree": float(weighted_degree.get(node, 0.0)),
+            "clustering": float(clustering.get(node, 0.0)),
+            "community_id": int(community_membership.get(node, -1)),
+        }
+        if include_path_centralities:
+            record["betweenness"] = float(betweenness.get(node, 0.0))
+            record["closeness"] = float(closeness.get(node, 0.0))
+        records.append(record)
 
     return pd.DataFrame(records, columns=columns)
 
@@ -227,6 +233,7 @@ def save_similarity_node_metrics(
     weight_attr: str = "weight",
     community_seed: int = 42,
     communities: list[set[object]] | None = None,
+    include_path_centralities: bool = True,
 ) -> tuple[pd.DataFrame, Path]:
     """Compute and save per-node similarity metrics to CSV."""
 
@@ -235,6 +242,7 @@ def save_similarity_node_metrics(
         weight_attr=weight_attr,
         community_seed=community_seed,
         communities=communities,
+        include_path_centralities=include_path_centralities,
     )
 
     if output_path is None:
