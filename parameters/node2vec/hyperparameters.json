@@ -1,0 +1,14 @@
+{
+  "dimensions": 128,
+  "walk_length": 10,
+  "num_walks": 3,
+  "p": 2.0,
+  "q": 4.0,
+  "window_size": 3,
+  "epochs": 5,
+  "seed": 42,
+  "max_start_nodes": null,
+  "workers": 1,
+  "min_count": 0,
+  "sg": 1
+}

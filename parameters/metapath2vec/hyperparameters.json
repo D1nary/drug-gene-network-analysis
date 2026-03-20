@@ -1,0 +1,11 @@
+{
+  "embedding_dim": 128,
+  "window_size": 7,
+  "walk_length": 60,
+  "num_walks": 10,
+  "metapath": ["drug", "gene", "drug"],
+  "negative_samples": 5,
+  "epochs": 5,
+  "learning_rate": 0.025,
+  "min_count": 1
+}

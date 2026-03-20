@@ -791,7 +791,6 @@ def save_community_members_by_density(
 
     output_dir = Path(output_dir) if output_dir else COMMUNITY_METRICS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
-
     density_tag = f"{density_threshold:g}".replace(".", "p")
     output_path = output_dir / (
         f"community_members_density_gt_{density_tag}_size_ge_{min_size}.csv"

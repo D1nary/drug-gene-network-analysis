@@ -96,15 +96,18 @@ def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
 
 def build_node2vec_embeddings(
     graph: nx.Graph,
-    dimensions: int = 128,
-    walk_length: int = 10,
-    num_walks: int = 3,
-    p: float = 2.0,
-    q: float = 4.0,
-    window_size: int = 3,
-    epochs: int = 5,
-    seed: int = 42,
-    max_start_nodes: int | None = None,
+    dimensions: int,
+    walk_length: int,
+    num_walks: int,
+    p: float,
+    q: float,
+    window_size: int,
+    epochs: int,
+    seed: int,
+    max_start_nodes: int | None,
+    workers: int,
+    min_count: int,
+    sg: int,
     output_path: Path | None = None,
 ) -> pd.DataFrame:
     """Compute classic Node2Vec embeddings and save them to CSV.
@@ -130,6 +133,12 @@ def build_node2vec_embeddings(
         raise ValueError("p and q must be > 0.")
     if epochs <= 0:
         raise ValueError("epochs must be > 0.")
+    if workers <= 0:
+        raise ValueError("workers must be > 0.")
+    if min_count < 0:
+        raise ValueError("min_count must be >= 0.")
+    if sg not in {0, 1}:
+        raise ValueError("sg must be either 0 (CBOW) or 1 (Skip-gram).")
     if max_start_nodes is not None and max_start_nodes <= 0:
         raise ValueError("max_start_nodes must be > 0 when provided.")
 
@@ -198,9 +207,9 @@ def build_node2vec_embeddings(
         sentences=walks,
         vector_size=dimensions,
         window=window_size,
-        min_count=0,
-        sg=1,
-        workers=1,
+        min_count=min_count,
+        sg=sg,
+        workers=workers,
         epochs=epochs,
         seed=seed,
     )
@@ -231,6 +240,170 @@ def build_node2vec_embeddings(
 
     if output_path is None:
         output_path = Path(__file__).resolve().parent / "results" / "embedding" / "node_embeddings.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_df.to_csv(output_path, index=False)
+    return embeddings_df
+
+
+def build_metapath2vec_embeddings(
+    graph: nx.Graph,
+    embedding_dim: int,
+    window_size: int,
+    walk_length: int,
+    num_walks: int,
+    metapath: list[str],
+    negative_samples: int,
+    epochs: int,
+    learning_rate: float,
+    min_count: int,
+    output_path: Path | None = None,
+) -> pd.DataFrame:
+    """Compute metapath2vec embeddings on a bipartite graph and save them to CSV.
+
+    The output schema is:
+    ``node_id,node_type,emb_1,...,emb_d`` where ``d = embedding_dim``.
+    """
+
+    if Word2Vec is None:
+        raise ImportError(
+            "gensim is required to train metapath2vec embeddings. "
+            "Install it with `pip install gensim`."
+        )
+    if embedding_dim <= 0:
+        raise ValueError("embedding_dim must be > 0.")
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0.")
+    if walk_length <= 1:
+        raise ValueError("walk_length must be > 1.")
+    if num_walks <= 0:
+        raise ValueError("num_walks must be > 0.")
+    if negative_samples <= 0:
+        raise ValueError("negative_samples must be > 0.")
+    if epochs <= 0:
+        raise ValueError("epochs must be > 0.")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be > 0.")
+    if min_count < 0:
+        raise ValueError("min_count must be >= 0.")
+    if len(metapath) < 2:
+        raise ValueError("metapath must contain at least 2 node types.")
+
+    nodes = sorted(graph.nodes())
+    if not nodes:
+        raise ValueError("Cannot compute embeddings on an empty graph.")
+
+    node_types = {
+        node: str(graph.nodes[node].get("bipartite", "unknown")).strip().lower()
+        for node in nodes
+    }
+    normalized_metapath = [str(node_type).strip().lower() for node_type in metapath]
+    if any(not node_type for node_type in normalized_metapath):
+        raise ValueError("metapath cannot contain empty node types.")
+
+    unique_node_types = set(node_types.values())
+    unknown_types = sorted(set(normalized_metapath) - unique_node_types)
+    if unknown_types:
+        raise ValueError(
+            "metapath contains node types that are not present in the graph: "
+            + ", ".join(unknown_types)
+        )
+
+    metapath_cycle = normalized_metapath[:-1]
+    if not metapath_cycle:
+        metapath_cycle = normalized_metapath
+    cycle_length = len(metapath_cycle)
+
+    type_to_offsets: dict[str, list[int]] = {}
+    for idx, node_type in enumerate(metapath_cycle):
+        type_to_offsets.setdefault(node_type, []).append(idx)
+
+    missing_types = sorted(unique_node_types - set(type_to_offsets))
+    if missing_types:
+        raise ValueError(
+            "metapath does not define traversal positions for graph node types: "
+            + ", ".join(missing_types)
+        )
+
+    neighbors_by_type: dict[str, dict[str, list[str]]] = {}
+    for node in nodes:
+        typed_neighbors: dict[str, list[str]] = {}
+        for neighbor in graph.neighbors(node):
+            neighbor_type = node_types[neighbor]
+            typed_neighbors.setdefault(neighbor_type, []).append(neighbor)
+        neighbors_by_type[node] = typed_neighbors
+
+    rng = np.random.default_rng(42)
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+
+    def _generate_walk(start_node: str, start_offset: int) -> list[str]:
+        walk = [start_node]
+        current_node = start_node
+        current_offset = start_offset
+
+        for _ in range(walk_length - 1):
+            next_offset = (current_offset + 1) % cycle_length
+            expected_type = metapath_cycle[next_offset]
+            candidate_neighbors = neighbors_by_type[current_node].get(expected_type, [])
+            if not candidate_neighbors:
+                break
+            next_node = str(rng.choice(candidate_neighbors))
+            walk.append(next_node)
+            current_node = next_node
+            current_offset = next_offset
+
+        return walk
+
+    walks: list[list[str]] = []
+    for _ in range(num_walks):
+        shuffled_nodes = nodes.copy()
+        rng.shuffle(shuffled_nodes)
+        for node in shuffled_nodes:
+            node_type = node_types[node]
+            start_offset = type_to_offsets[node_type][0]
+            walks.append(_generate_walk(node, start_offset))
+
+    model = Word2Vec(
+        sentences=walks,
+        vector_size=embedding_dim,
+        window=window_size,
+        min_count=min_count,
+        sg=1,
+        negative=negative_samples,
+        workers=1,
+        epochs=epochs,
+        alpha=learning_rate,
+        min_alpha=learning_rate,
+        seed=42,
+    )
+
+    embedding_matrix = np.zeros((len(nodes), embedding_dim), dtype=float)
+    for node in nodes:
+        if node in model.wv:
+            embedding_matrix[node_to_idx[node]] = model.wv[node]
+
+    norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
+    nonzero_norms = norms.squeeze() > 0
+    embedding_matrix[nonzero_norms] = (
+        embedding_matrix[nonzero_norms] / norms[nonzero_norms]
+    )
+
+    rows = []
+    for node in nodes:
+        node_idx = node_to_idx[node]
+        row = {"node_id": node, "node_type": node_types[node]}
+        for dim_idx in range(embedding_dim):
+            row[f"emb_{dim_idx + 1}"] = float(embedding_matrix[node_idx, dim_idx])
+        rows.append(row)
+
+    embeddings_df = pd.DataFrame(rows)
+
+    if output_path is None:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "embedding"
+            / "metapath2vec_embeddings.csv"
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     embeddings_df.to_csv(output_path, index=False)
     return embeddings_df

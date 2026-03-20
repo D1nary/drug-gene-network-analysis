@@ -14,6 +14,7 @@ import pandas as pd
 from network import (
     build_drug_target_network,
     build_node2vec_embeddings,
+    build_metapath2vec_embeddings,
     build_cosine_similarity_network_from_node2vec_embeddings,
     build_gene_cooccurrence_network,
     build_drug_similarity_network,
@@ -47,10 +48,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 # Default location of the compressed targets dataset
 DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "ChG-InterDecagon_targets.csv.gz"
 RESULTS_DIR = PROJECT_ROOT / "results"
+PARAMETERS_DIR = PROJECT_ROOT / "parameters"
+EMBEDDING_DIR = RESULTS_DIR / "embedding"
 COMMUNITY_DIR = RESULTS_DIR / "community"
 COMMUNITY_METRICS_DIR = COMMUNITY_DIR / "community_network_metrics"
 DAG_DIR = RESULTS_DIR / "dag"
 DAG_COMMUNITY_INFO_DIR = DAG_DIR / "communities"
+NODE2VEC_PARAMETERS_DIR = PARAMETERS_DIR / "node2vec"
+METAPATH2VEC_PARAMETERS_DIR = PARAMETERS_DIR / "metapath2vec"
+NODE2VEC_HYPERPARAMETERS_PATH = NODE2VEC_PARAMETERS_DIR / "hyperparameters.json"
+METAPATH2VEC_HYPERPARAMETERS_PATH = METAPATH2VEC_PARAMETERS_DIR / "hyperparameters.json"
 
 
 def read_targets(path: Path) -> pd.DataFrame:
@@ -259,25 +266,147 @@ def build_and_save_community_dag(
     )
 
 
-def _optional_positive_int(value: str) -> int | None:
-    lowered = value.strip().lower()
-    if lowered in {"none", "null", "all"}:
-        return None
-    try:
-        parsed = int(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            f"Invalid integer value: {value}"
-        ) from exc
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("Value must be > 0 or None.")
-    return parsed
+def load_node2vec_hyperparameters(path: Path) -> dict[str, int | float | None]:
+    """Load and validate the Node2Vec hyperparameter configuration from JSON."""
+
+    if not path.exists():
+        raise FileNotFoundError(f"Node2Vec hyperparameter file not found at {path}")
+
+    with path.open("r", encoding="utf-8") as handle:
+        hyperparameters = json.load(handle)
+
+    required_keys = {
+        "dimensions": int,
+        "walk_length": int,
+        "num_walks": int,
+        "p": (int, float),
+        "q": (int, float),
+        "window_size": int,
+        "epochs": int,
+        "seed": int,
+        "max_start_nodes": (int, type(None)),
+        "workers": int,
+        "min_count": int,
+        "sg": int,
+    }
+    missing_keys = [key for key in required_keys if key not in hyperparameters]
+    if missing_keys:
+        raise ValueError(
+            "Node2Vec hyperparameter file is missing required keys: "
+            + ", ".join(sorted(missing_keys))
+        )
+
+    for key, expected_type in required_keys.items():
+        if not isinstance(hyperparameters[key], expected_type):
+            raise TypeError(
+                f"Invalid type for Node2Vec hyperparameter '{key}': "
+                f"expected {expected_type}, got {type(hyperparameters[key])}."
+            )
+
+    if hyperparameters["dimensions"] <= 0:
+        raise ValueError("Node2Vec hyperparameter 'dimensions' must be > 0.")
+    if hyperparameters["walk_length"] <= 1:
+        raise ValueError("Node2Vec hyperparameter 'walk_length' must be > 1.")
+    if hyperparameters["num_walks"] <= 0:
+        raise ValueError("Node2Vec hyperparameter 'num_walks' must be > 0.")
+    if hyperparameters["p"] <= 0 or hyperparameters["q"] <= 0:
+        raise ValueError("Node2Vec hyperparameters 'p' and 'q' must be > 0.")
+    if hyperparameters["window_size"] <= 0:
+        raise ValueError("Node2Vec hyperparameter 'window_size' must be > 0.")
+    if hyperparameters["epochs"] <= 0:
+        raise ValueError("Node2Vec hyperparameter 'epochs' must be > 0.")
+    if hyperparameters["workers"] <= 0:
+        raise ValueError("Node2Vec hyperparameter 'workers' must be > 0.")
+    if hyperparameters["min_count"] < 0:
+        raise ValueError("Node2Vec hyperparameter 'min_count' must be >= 0.")
+    if hyperparameters["sg"] not in {0, 1}:
+        raise ValueError("Node2Vec hyperparameter 'sg' must be 0 or 1.")
+    if (
+        hyperparameters["max_start_nodes"] is not None
+        and hyperparameters["max_start_nodes"] <= 0
+    ):
+        raise ValueError(
+            "Node2Vec hyperparameter 'max_start_nodes' must be > 0 when provided."
+        )
+
+    return hyperparameters
+
+
+def load_metapath2vec_hyperparameters(
+    path: Path,
+) -> dict[str, int | float | list[str]]:
+    """Load and validate the metapath2vec hyperparameter configuration from JSON."""
+
+    if not path.exists():
+        raise FileNotFoundError(f"metapath2vec hyperparameter file not found at {path}")
+
+    with path.open("r", encoding="utf-8") as handle:
+        hyperparameters = json.load(handle)
+
+    required_keys = {
+        "embedding_dim": int,
+        "window_size": int,
+        "walk_length": int,
+        "num_walks": int,
+        "metapath": list,
+        "negative_samples": int,
+        "epochs": int,
+        "learning_rate": (int, float),
+        "min_count": int,
+    }
+    missing_keys = [key for key in required_keys if key not in hyperparameters]
+    if missing_keys:
+        raise ValueError(
+            "metapath2vec hyperparameter file is missing required keys: "
+            + ", ".join(sorted(missing_keys))
+        )
+
+    for key, expected_type in required_keys.items():
+        if not isinstance(hyperparameters[key], expected_type):
+            raise TypeError(
+                f"Invalid type for metapath2vec hyperparameter '{key}': "
+                f"expected {expected_type}, got {type(hyperparameters[key])}."
+            )
+
+    if hyperparameters["embedding_dim"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'embedding_dim' must be > 0.")
+    if hyperparameters["window_size"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'window_size' must be > 0.")
+    if hyperparameters["walk_length"] <= 1:
+        raise ValueError("metapath2vec hyperparameter 'walk_length' must be > 1.")
+    if hyperparameters["num_walks"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'num_walks' must be > 0.")
+    if hyperparameters["negative_samples"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'negative_samples' must be > 0.")
+    if hyperparameters["epochs"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'epochs' must be > 0.")
+    if hyperparameters["learning_rate"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'learning_rate' must be > 0.")
+    if hyperparameters["min_count"] < 0:
+        raise ValueError("metapath2vec hyperparameter 'min_count' must be >= 0.")
+    if len(hyperparameters["metapath"]) < 2:
+        raise ValueError("metapath2vec hyperparameter 'metapath' must have length >= 2.")
+    if not all(isinstance(item, str) and item.strip() for item in hyperparameters["metapath"]):
+        raise TypeError(
+            "metapath2vec hyperparameter 'metapath' must contain non-empty strings."
+        )
+
+    return hyperparameters
 
 
 def parse_args() -> argparse.Namespace:
     # Build the CLI interface for selecting alternative dataset paths
     parser = argparse.ArgumentParser(
         description="Inspect and preprocess the ChG-InterDecagon targets dataset."
+    )
+    parser.add_argument(
+        "--embedding-algorithm",
+        choices=["node2vec", "metapath2vec"],
+        default="metapath2vec",
+        help=(
+            "Embedding algorithm to execute when --run-embedding is enabled. "
+            "Choose from: node2vec, metapath2vec. Default: node2vec."
+        ),
     )
     parser.add_argument(
         "--data-path",
@@ -377,57 +506,18 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--embedding-dim",
-        type=int,
-        default=128,
-        help="Embedding vector size for Node2Vec (default: 128).",
-    )
-    parser.add_argument(
-        "--embedding-walk-length",
-        type=int,
-        default=10,
-        help="Random walk length for Node2Vec (default: 10).",
-    )
-    parser.add_argument(
-        "--embedding-num-walks",
-        type=int,
-        default=3,
-        help="Number of random walks per start node (default: 3).",
-    )
-    parser.add_argument(
-        "--embedding-window-size",
-        type=int,
-        default=3,
-        help="Context window size for Skip-gram training (default: 3).",
-    )
-    parser.add_argument(
-        "--embedding-max-start-nodes",
-        type=_optional_positive_int,
-        default=None,
-        help=(
-            "Max number of start nodes sampled for walks "
-            "Default: None (use all nodes)."
-        ),
-    )
-    parser.add_argument(
-        "--embedding-epochs",
-        type=int,
-        default=5,
-        help="Skip-gram training epochs for Node2Vec (default: 5).",
-    )
-    parser.add_argument(
         "--run-embedding",
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Run Node2Vec embedding generation before similarity network creation. "
-            "Default: enabled (use --no-run-embedding to skip)."
+            "Run embedding generation before similarity network creation. "
+            "Default: disabled."
         ),
     )
     parser.add_argument(
         "--run-similarity",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Run drug-drug similarity network creation from embeddings and save outputs "
             "under results/similarity. Default: disabled."
@@ -436,7 +526,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity-visualization",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Create similarity network visualization from results/similarity outputs. "
             "Default: enabled (use --no-run-similarity-visualization to skip)."
@@ -462,6 +552,7 @@ def main() -> None:
 
     # Make sure the results directories exist before further processing
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    EMBEDDING_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "drug_gene").mkdir(parents=True, exist_ok=True)
 
     if not data_path.exists():
@@ -486,27 +577,76 @@ def main() -> None:
         f"{bipartite_snapshot.number_of_nodes()} nodes,",
         f"{bipartite_snapshot.number_of_edges()} edges",
     )
-    embedding_output_path = RESULTS_DIR / "embedding" / "node_embeddings.csv"
-    if args.run_embedding:
-        print("\nPerform embedding algoritm")
-        embeddings_df = build_node2vec_embeddings(
-            graph,
-            dimensions=args.embedding_dim,
-            walk_length=args.embedding_walk_length,
-            num_walks=args.embedding_num_walks,
-            window_size=args.embedding_window_size,
-            epochs=args.embedding_epochs,
-            max_start_nodes=args.embedding_max_start_nodes,
-            output_path=embedding_output_path,
+    embedding_algorithm = args.embedding_algorithm
+    if embedding_algorithm == "node2vec":
+        embedding_output_path = EMBEDDING_DIR / "node2vec_embeddings.csv"
+        node2vec_hyperparameters = load_node2vec_hyperparameters(
+            NODE2VEC_HYPERPARAMETERS_PATH
         )
-        print(
-            "Node2Vec embeddings saved to",
-            embedding_output_path,
-            f"({len(embeddings_df)} nodes, {args.embedding_dim} dims)",
+        metapath2vec_hyperparameters = None
+    elif embedding_algorithm == "metapath2vec":
+        embedding_output_path = EMBEDDING_DIR / "metapath2vec_embeddings.csv"
+        node2vec_hyperparameters = None
+        metapath2vec_hyperparameters = load_metapath2vec_hyperparameters(
+            METAPATH2VEC_HYPERPARAMETERS_PATH
         )
     else:
+        raise ValueError(f"Unsupported embedding algorithm: {embedding_algorithm}")
+
+    if args.run_embedding:
+        print(f"\nPerform embedding algorithm: {embedding_algorithm}")
+        if embedding_algorithm == "node2vec":
+            embeddings_df = build_node2vec_embeddings(
+                graph,
+                dimensions=node2vec_hyperparameters["dimensions"],
+                walk_length=node2vec_hyperparameters["walk_length"],
+                num_walks=node2vec_hyperparameters["num_walks"],
+                p=node2vec_hyperparameters["p"],
+                q=node2vec_hyperparameters["q"],
+                window_size=node2vec_hyperparameters["window_size"],
+                epochs=node2vec_hyperparameters["epochs"],
+                seed=node2vec_hyperparameters["seed"],
+                max_start_nodes=node2vec_hyperparameters["max_start_nodes"],
+                workers=node2vec_hyperparameters["workers"],
+                min_count=node2vec_hyperparameters["min_count"],
+                sg=node2vec_hyperparameters["sg"],
+                output_path=embedding_output_path,
+            )
+            print(
+                "Node2Vec embeddings saved to",
+                embedding_output_path,
+                (
+                    f"({len(embeddings_df)} nodes, "
+                    f"{node2vec_hyperparameters['dimensions']} dims)"
+                ),
+            )
+        elif embedding_algorithm == "metapath2vec":
+            embeddings_df = build_metapath2vec_embeddings(
+                graph,
+                embedding_dim=metapath2vec_hyperparameters["embedding_dim"],
+                window_size=metapath2vec_hyperparameters["window_size"],
+                walk_length=metapath2vec_hyperparameters["walk_length"],
+                num_walks=metapath2vec_hyperparameters["num_walks"],
+                metapath=metapath2vec_hyperparameters["metapath"],
+                negative_samples=metapath2vec_hyperparameters["negative_samples"],
+                epochs=metapath2vec_hyperparameters["epochs"],
+                learning_rate=metapath2vec_hyperparameters["learning_rate"],
+                min_count=metapath2vec_hyperparameters["min_count"],
+                output_path=embedding_output_path,
+            )
+            print(
+                "metapath2vec embeddings saved to",
+                embedding_output_path,
+                (
+                    f"({len(embeddings_df)} nodes, "
+                    f"{metapath2vec_hyperparameters['embedding_dim']} dims)"
+                ),
+            )
+        else:
+            raise ValueError(f"Unsupported embedding algorithm: {embedding_algorithm}")
+    else:
         print(
-            "Skipping Node2Vec embedding generation (--no-run-embedding set).",
+            f"Skipping {embedding_algorithm} embedding generation (--no-run-embedding set).",
             "Using existing embeddings at",
             embedding_output_path,
         )
