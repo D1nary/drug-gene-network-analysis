@@ -353,6 +353,8 @@ def load_metapath2vec_hyperparameters(
         "epochs": int,
         "learning_rate": (int, float),
         "min_count": int,
+        "p": (int, float),
+        "q": (int, float),
     }
     missing_keys = [key for key in required_keys if key not in hyperparameters]
     if missing_keys:
@@ -384,6 +386,10 @@ def load_metapath2vec_hyperparameters(
         raise ValueError("metapath2vec hyperparameter 'learning_rate' must be > 0.")
     if hyperparameters["min_count"] < 0:
         raise ValueError("metapath2vec hyperparameter 'min_count' must be >= 0.")
+    if hyperparameters["p"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'p' must be > 0.")
+    if hyperparameters["q"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'q' must be > 0.")
     if len(hyperparameters["metapath"]) < 2:
         raise ValueError("metapath2vec hyperparameter 'metapath' must have length >= 2.")
     if not all(isinstance(item, str) and item.strip() for item in hyperparameters["metapath"]):
@@ -632,6 +638,8 @@ def main() -> None:
                 epochs=metapath2vec_hyperparameters["epochs"],
                 learning_rate=metapath2vec_hyperparameters["learning_rate"],
                 min_count=metapath2vec_hyperparameters["min_count"],
+                p=metapath2vec_hyperparameters["p"],
+                q=metapath2vec_hyperparameters["q"],
                 output_path=embedding_output_path,
             )
             print(

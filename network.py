@@ -256,6 +256,8 @@ def build_metapath2vec_embeddings(
     epochs: int,
     learning_rate: float,
     min_count: int,
+    p: float = 1.0,
+    q: float = 1.0,
     output_path: Path | None = None,
 ) -> pd.DataFrame:
     """Compute metapath2vec embeddings on a bipartite graph and save them to CSV.
@@ -285,6 +287,10 @@ def build_metapath2vec_embeddings(
         raise ValueError("learning_rate must be > 0.")
     if min_count < 0:
         raise ValueError("min_count must be >= 0.")
+    if p <= 0:
+        raise ValueError("p must be > 0.")
+    if q <= 0:
+        raise ValueError("q must be > 0.")
     if len(metapath) < 2:
         raise ValueError("metapath must contain at least 2 node types.")
 
@@ -339,6 +345,7 @@ def build_metapath2vec_embeddings(
         walk = [start_node]
         current_node = start_node
         current_offset = start_offset
+        prev_node: str | None = None
 
         for _ in range(walk_length - 1):
             next_offset = (current_offset + 1) % cycle_length
@@ -346,8 +353,27 @@ def build_metapath2vec_embeddings(
             candidate_neighbors = neighbors_by_type[current_node].get(expected_type, [])
             if not candidate_neighbors:
                 break
-            next_node = str(rng.choice(candidate_neighbors))
+
+            if prev_node is None:
+                next_node = str(rng.choice(candidate_neighbors))
+            else:
+                prev_typed_neighbors = set(
+                    neighbors_by_type[prev_node].get(expected_type, [])
+                )
+                weights = []
+                for candidate in candidate_neighbors:
+                    if candidate == prev_node:
+                        weights.append(1.0 / p)
+                    elif candidate in prev_typed_neighbors:
+                        weights.append(1.0)
+                    else:
+                        weights.append(1.0 / q)
+                probs = np.asarray(weights, dtype=float)
+                probs = probs / probs.sum()
+                next_node = str(candidate_neighbors[int(rng.choice(len(candidate_neighbors), p=probs))])
+
             walk.append(next_node)
+            prev_node = current_node
             current_node = next_node
             current_offset = next_offset
 
