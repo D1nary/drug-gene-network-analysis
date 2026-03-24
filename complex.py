@@ -13,6 +13,7 @@ import pandas as pd
 
 from network import (
     build_drug_target_network,
+    compute_bipartite_graph_stats,
     build_node2vec_embeddings,
     build_metapath2vec_embeddings,
     build_cosine_similarity_network_from_node2vec_embeddings,
@@ -483,7 +484,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cosine-threshold",
         type=float,
-        default=0.75,
+        default=0.65,
         help="Cosine threshold in [0,1] for drug-drug similarity on node2vec embeddings.",
     )
     parser.add_argument(
@@ -512,6 +513,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--run-graph-stats",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Compute and save bipartite graph statistics to results/drug_gene/graph_stats.json. "
+            "Default: enabled (use --no-run-graph-stats to skip)."
+        ),
+    )
+    parser.add_argument(
         "--run-embedding",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -532,7 +542,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity-visualization",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Create similarity network visualization from results/similarity outputs. "
             "Default: enabled (use --no-run-similarity-visualization to skip)."
@@ -541,7 +551,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-measurament",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Compute and save per-community measurament metrics from "
             "results/similarity/node_metrics.csv and edge_list.csv. "
@@ -599,10 +609,12 @@ def main() -> None:
     else:
         raise ValueError(f"Unsupported embedding algorithm: {embedding_algorithm}")
 
+    generated_walks: list[list[str]] | None = None
+
     if args.run_embedding:
         print(f"\nPerform embedding algorithm: {embedding_algorithm}")
         if embedding_algorithm == "node2vec":
-            embeddings_df = build_node2vec_embeddings(
+            embeddings_df, generated_walks = build_node2vec_embeddings(
                 graph,
                 dimensions=node2vec_hyperparameters["dimensions"],
                 walk_length=node2vec_hyperparameters["walk_length"],
@@ -627,7 +639,7 @@ def main() -> None:
                 ),
             )
         elif embedding_algorithm == "metapath2vec":
-            embeddings_df = build_metapath2vec_embeddings(
+            embeddings_df, generated_walks = build_metapath2vec_embeddings(
                 graph,
                 embedding_dim=metapath2vec_hyperparameters["embedding_dim"],
                 window_size=metapath2vec_hyperparameters["window_size"],
@@ -663,6 +675,20 @@ def main() -> None:
                 "Embedding generation is disabled and no embedding file was found at "
                 f"{embedding_output_path}. Enable --run-embedding or provide the file."
             )
+
+    if args.run_graph_stats:
+        stats = compute_bipartite_graph_stats(
+            graph,
+            output_path=RESULTS_DIR / "drug_gene" / "graph_stats.json",
+            all_walks=generated_walks,
+        )
+        print(
+            "Bipartite graph stats saved to results/drug_gene/graph_stats.json",
+            f"({stats['global']['n_drug']} drugs, {stats['global']['n_gene']} genes,"
+            f" {stats['global']['n_edges']} edges)",
+        )
+    else:
+        print("Skipping bipartite graph stats (--no-run-graph-stats set).")
 
     if args.run_similarity:
         print("Similarity netwok creation:")

@@ -5,9 +5,11 @@ the ChG-InterDecagon targets dataset."""
 from __future__ import annotations
 
 from itertools import combinations
+import json
 from pathlib import Path
 import pandas as pd
 import networkx as nx
+from networkx.algorithms import bipartite as nx_bipartite
 import numpy as np
 try:
     from gensim.models import Word2Vec
@@ -92,6 +94,87 @@ def build_drug_target_network(df: pd.DataFrame) -> nx.Graph:
         G.add_edge(f"Drug_{drug_id}", f"Gene_{gene_id}")
 
     return G
+
+
+def compute_bipartite_graph_stats(
+    graph: nx.Graph,
+    output_path: Path,
+    all_walks: list[list[str]] | None = None,
+    rare_walk_threshold: int = 5,
+) -> dict:
+    """Compute and save statistics of the bipartite drug-target graph.
+
+    Saves a JSON file at *output_path* and returns the same dict.
+    """
+    drug_nodes = [n for n, d in graph.nodes(data=True) if d.get("bipartite") == "drug"]
+    gene_nodes = [n for n, d in graph.nodes(data=True) if d.get("bipartite") == "gene"]
+
+    n_drug = len(drug_nodes)
+    n_gene = len(gene_nodes)
+    n_edges = graph.number_of_edges()
+    density = n_edges / (n_drug * n_gene) if n_drug and n_gene else 0.0
+
+    drug_degrees = np.array([graph.degree(n) for n in drug_nodes], dtype=float)
+
+    drug_proj = nx_bipartite.weighted_projected_graph(graph, drug_nodes)
+    edge_weights = [d["weight"] for _, _, d in drug_proj.edges(data=True)]
+
+    k = float(np.mean(drug_degrees)) if len(drug_degrees) > 0 else 0.0
+
+    stats: dict = {
+        "global": {
+            "n_drug": n_drug,
+            "n_gene": n_gene,
+            "n_edges": n_edges,
+            "density": round(density, 6),
+        },
+        "drug_degree_distribution": {
+            "min": float(drug_degrees.min()) if len(drug_degrees) else 0.0,
+            "max": float(drug_degrees.max()) if len(drug_degrees) else 0.0,
+            "mean": round(float(np.mean(drug_degrees)), 4) if len(drug_degrees) else 0.0,
+            "median": round(float(np.median(drug_degrees)), 4) if len(drug_degrees) else 0.0,
+            "std": round(float(np.std(drug_degrees)), 4) if len(drug_degrees) else 0.0,
+            "p10": round(float(np.percentile(drug_degrees, 10)), 4) if len(drug_degrees) else 0.0,
+            "p25": round(float(np.percentile(drug_degrees, 25)), 4) if len(drug_degrees) else 0.0,
+            "p75": round(float(np.percentile(drug_degrees, 75)), 4) if len(drug_degrees) else 0.0,
+            "p90": round(float(np.percentile(drug_degrees, 90)), 4) if len(drug_degrees) else 0.0,
+            "p95": round(float(np.percentile(drug_degrees, 95)), 4) if len(drug_degrees) else 0.0,
+        },
+        "gene_overlap_between_drugs": {
+            "min": float(min(edge_weights)) if edge_weights else 0.0,
+            "max": float(max(edge_weights)) if edge_weights else 0.0,
+            "mean": round(float(np.mean(edge_weights)), 4) if edge_weights else 0.0,
+            "median": round(float(np.median(edge_weights)), 4) if edge_weights else 0.0,
+        },
+        "walk_reachability_estimate": {
+            "mean_drug_degree_k": round(k, 4),
+            "drugs_reachable_1_hop": round(k, 4),
+            "drugs_reachable_2_hop": int(min(k ** 2, n_drug)),
+        },
+    }
+
+    if all_walks is not None:
+        from collections import Counter
+        drug_node_set = {str(n) for n in drug_nodes}
+        walk_counts = Counter(
+            node for walk in all_walks for node in walk if node in drug_node_set
+        )
+        n_undersampled = sum(
+            1 for d in drug_nodes if walk_counts[str(d)] < rare_walk_threshold
+        )
+        coverage_ratio = round(1.0 - n_undersampled / n_drug, 6) if n_drug else 0.0
+        stats["rare_drug_walk_coverage"] = {
+            "threshold": rare_walk_threshold,
+            "n_drug_total": n_drug,
+            "n_drug_undersampled": n_undersampled,
+            "coverage_ratio": coverage_ratio,
+        }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as fh:
+        json.dump(stats, fh, indent=2)
+
+    return stats
 
 
 def build_node2vec_embeddings(
@@ -242,7 +325,7 @@ def build_node2vec_embeddings(
         output_path = Path(__file__).resolve().parent / "results" / "embedding" / "node_embeddings.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     embeddings_df.to_csv(output_path, index=False)
-    return embeddings_df
+    return embeddings_df, walks
 
 
 def build_metapath2vec_embeddings(
@@ -432,7 +515,7 @@ def build_metapath2vec_embeddings(
         )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     embeddings_df.to_csv(output_path, index=False)
-    return embeddings_df
+    return embeddings_df, walks
 
 
 def build_drug_similarity_network(

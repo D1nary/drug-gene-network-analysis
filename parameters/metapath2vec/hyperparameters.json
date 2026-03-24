@@ -1,8 +1,8 @@
 {
   "embedding_dim": 128,
-  "window_size": 7,
-  "walk_length": 60,
-  "num_walks": 10,
+  "window_size": 4,
+  "walk_length": 40,
+  "num_walks": 20,
   "metapath": ["drug", "gene", "drug"],
   "negative_samples": 5,
   "epochs": 5,
