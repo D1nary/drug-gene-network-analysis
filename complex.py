@@ -555,7 +555,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cosine-threshold",
         type=float,
-        default=0.65,
+        default=0.60,
         help="Cosine threshold in [0,1] for drug-drug similarity on node2vec embeddings.",
     )
     parser.add_argument(
@@ -595,7 +595,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-embedding",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Run embedding generation before similarity network creation. "
             "Default: disabled."
