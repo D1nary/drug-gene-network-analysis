@@ -328,7 +328,7 @@ def build_node2vec_embeddings(
     return embeddings_df, walks
 
 
-def build_metapath2vec_embeddings(
+def build_metapath2vec_pq(
     graph: nx.Graph,
     embedding_dim: int,
     window_size: int,
@@ -511,7 +511,722 @@ def build_metapath2vec_embeddings(
             Path(__file__).resolve().parent
             / "results"
             / "embedding"
-            / "metapath2vec_embeddings.csv"
+            / "metapath2vec_pq_embeddings.csv"
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_df.to_csv(output_path, index=False)
+    return embeddings_df, walks
+
+
+def build_metapath2vec_standard(
+    graph: nx.Graph,
+    embedding_dim: int,
+    window_size: int,
+    walk_length: int,
+    num_walks: int,
+    metapath: list[str],
+    negative_samples: int,
+    epochs: int,
+    learning_rate: float,
+    min_count: int,
+    output_path: Path | None = None,
+) -> pd.DataFrame:
+    """Compute standard Metapath2Vec embeddings on a bipartite graph and save them to CSV.
+
+    Unlike the MP2Vec-pq variant, walks use uniform transition probabilities: at
+    each step the next node is chosen uniformly at random among the neighbors that
+    match the expected metapath type.  There is no p/q bias and no prev_node
+    tracking.
+
+    The output schema is:
+    ``node_id,node_type,emb_1,...,emb_d`` where ``d = embedding_dim``.
+    """
+
+    if Word2Vec is None:
+        raise ImportError(
+            "gensim is required to train metapath2vec embeddings. "
+            "Install it with `pip install gensim`."
+        )
+    if embedding_dim <= 0:
+        raise ValueError("embedding_dim must be > 0.")
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0.")
+    if walk_length <= 1:
+        raise ValueError("walk_length must be > 1.")
+    if num_walks <= 0:
+        raise ValueError("num_walks must be > 0.")
+    if negative_samples <= 0:
+        raise ValueError("negative_samples must be > 0.")
+    if epochs <= 0:
+        raise ValueError("epochs must be > 0.")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be > 0.")
+    if min_count < 0:
+        raise ValueError("min_count must be >= 0.")
+    if len(metapath) < 2:
+        raise ValueError("metapath must contain at least 2 node types.")
+
+    nodes = sorted(graph.nodes())
+    if not nodes:
+        raise ValueError("Cannot compute embeddings on an empty graph.")
+
+    node_types = {
+        node: str(graph.nodes[node].get("bipartite", "unknown")).strip().lower()
+        for node in nodes
+    }
+    normalized_metapath = [str(node_type).strip().lower() for node_type in metapath]
+    if any(not node_type for node_type in normalized_metapath):
+        raise ValueError("metapath cannot contain empty node types.")
+
+    unique_node_types = set(node_types.values())
+    unknown_types = sorted(set(normalized_metapath) - unique_node_types)
+    if unknown_types:
+        raise ValueError(
+            "metapath contains node types that are not present in the graph: "
+            + ", ".join(unknown_types)
+        )
+
+    metapath_cycle = normalized_metapath[:-1]
+    if not metapath_cycle:
+        metapath_cycle = normalized_metapath
+    cycle_length = len(metapath_cycle)
+
+    type_to_offsets: dict[str, list[int]] = {}
+    for idx, node_type in enumerate(metapath_cycle):
+        type_to_offsets.setdefault(node_type, []).append(idx)
+
+    missing_types = sorted(unique_node_types - set(type_to_offsets))
+    if missing_types:
+        raise ValueError(
+            "metapath does not define traversal positions for graph node types: "
+            + ", ".join(missing_types)
+        )
+
+    neighbors_by_type: dict[str, dict[str, list[str]]] = {}
+    for node in nodes:
+        typed_neighbors: dict[str, list[str]] = {}
+        for neighbor in graph.neighbors(node):
+            neighbor_type = node_types[neighbor]
+            typed_neighbors.setdefault(neighbor_type, []).append(neighbor)
+        neighbors_by_type[node] = typed_neighbors
+
+    rng = np.random.default_rng(42)
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+
+    def _generate_walk(start_node: str, start_offset: int) -> list[str]:
+        walk = [start_node]
+        current_node = start_node
+        current_offset = start_offset
+
+        for _ in range(walk_length - 1):
+            next_offset = (current_offset + 1) % cycle_length
+            expected_type = metapath_cycle[next_offset]
+            candidate_neighbors = neighbors_by_type[current_node].get(expected_type, [])
+            if not candidate_neighbors:
+                break
+
+            next_node = str(rng.choice(candidate_neighbors))
+            walk.append(next_node)
+            current_node = next_node
+            current_offset = next_offset
+
+        return walk
+
+    walks: list[list[str]] = []
+    for _ in range(num_walks):
+        shuffled_nodes = nodes.copy()
+        rng.shuffle(shuffled_nodes)
+        for node in shuffled_nodes:
+            node_type = node_types[node]
+            start_offset = type_to_offsets[node_type][0]
+            walks.append(_generate_walk(node, start_offset))
+
+    model = Word2Vec(
+        sentences=walks,
+        vector_size=embedding_dim,
+        window=window_size,
+        min_count=min_count,
+        sg=1,
+        negative=negative_samples,
+        workers=1,
+        epochs=epochs,
+        alpha=learning_rate,
+        min_alpha=learning_rate,
+        seed=42,
+    )
+
+    embedding_matrix = np.zeros((len(nodes), embedding_dim), dtype=float)
+    for node in nodes:
+        if node in model.wv:
+            embedding_matrix[node_to_idx[node]] = model.wv[node]
+
+    norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
+    nonzero_norms = norms.squeeze() > 0
+    embedding_matrix[nonzero_norms] = (
+        embedding_matrix[nonzero_norms] / norms[nonzero_norms]
+    )
+
+    rows = []
+    for node in nodes:
+        node_idx = node_to_idx[node]
+        row = {"node_id": node, "node_type": node_types[node]}
+        for dim_idx in range(embedding_dim):
+            row[f"emb_{dim_idx + 1}"] = float(embedding_matrix[node_idx, dim_idx])
+        rows.append(row)
+
+    embeddings_df = pd.DataFrame(rows)
+
+    if output_path is None:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "embedding"
+            / "metapath2vec_standard_embeddings.csv"
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_df.to_csv(output_path, index=False)
+    return embeddings_df, walks
+
+
+def build_metapath2vec_pp(
+    graph: nx.Graph,
+    embedding_dim: int,
+    window_size: int,
+    walk_length: int,
+    num_walks: int,
+    metapath: list[str],
+    negative_samples: int,
+    epochs: int,
+    learning_rate: float,
+    min_count: int,
+    output_path: Path | None = None,
+) -> tuple[pd.DataFrame, list[list[str]]]:
+    """Compute Metapath2Vec++ embeddings (Dong, Chawla & Swami, KDD '17).
+
+    Walk generation is identical to :func:`build_metapath2vec_standard` — uniform
+    metapath-guided random walks.  The difference is in the training objective:
+    metapath2vec++ uses *heterogeneous negative sampling*, where for every
+    (center, context) pair the negative nodes are drawn exclusively from V_t —
+    the subset of nodes that share the same type t as the context node —
+    rather than from the full node set V.
+
+    Formally the conditional probability becomes::
+
+        p(c_t | v; θ) = exp(X_c_t · X_v) / Σ_{u_t ∈ V_t} exp(X_u_t · X_v)
+
+    Because gensim's Word2Vec only supports global negative sampling, the
+    skip-gram update is implemented directly with NumPy.
+
+    Output schema: ``node_id,node_type,emb_1,...,emb_d``  (d = embedding_dim).
+    """
+    from collections import Counter
+
+    # ------------------------------------------------------------------ #
+    # Validation                                                           #
+    # ------------------------------------------------------------------ #
+    if embedding_dim <= 0:
+        raise ValueError("embedding_dim must be > 0.")
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0.")
+    if walk_length <= 1:
+        raise ValueError("walk_length must be > 1.")
+    if num_walks <= 0:
+        raise ValueError("num_walks must be > 0.")
+    if negative_samples <= 0:
+        raise ValueError("negative_samples must be > 0.")
+    if epochs <= 0:
+        raise ValueError("epochs must be > 0.")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be > 0.")
+    if min_count < 0:
+        raise ValueError("min_count must be >= 0.")
+    if len(metapath) < 2:
+        raise ValueError("metapath must contain at least 2 node types.")
+
+    nodes = sorted(graph.nodes())
+    if not nodes:
+        raise ValueError("Cannot compute embeddings on an empty graph.")
+
+    # ------------------------------------------------------------------ #
+    # Graph structures                                                     #
+    # ------------------------------------------------------------------ #
+    node_types: dict[str, str] = {
+        node: str(graph.nodes[node].get("bipartite", "unknown")).strip().lower()
+        for node in nodes
+    }
+    normalized_metapath = [str(t).strip().lower() for t in metapath]
+    if any(not t for t in normalized_metapath):
+        raise ValueError("metapath cannot contain empty node types.")
+
+    unique_node_types = set(node_types.values())
+    unknown_types = sorted(set(normalized_metapath) - unique_node_types)
+    if unknown_types:
+        raise ValueError(
+            "metapath contains node types not present in the graph: "
+            + ", ".join(unknown_types)
+        )
+
+    # The metapath must be in cyclic notation: the first and last type must be
+    # the same (e.g. ['drug','target','drug']), as per the paper's definition.
+    if normalized_metapath[0] != normalized_metapath[-1]:
+        raise ValueError(
+            "metapath must be in cyclic notation: the last type must equal the "
+            f"first (got '{normalized_metapath[0]}' != '{normalized_metapath[-1]}')."
+        )
+
+    # Drop the repeated last element so the cycle length equals the period.
+    metapath_cycle = normalized_metapath[:-1] or normalized_metapath
+    cycle_length = len(metapath_cycle)
+
+    type_to_offsets: dict[str, list[int]] = {}
+    for idx, t in enumerate(metapath_cycle):
+        type_to_offsets.setdefault(t, []).append(idx)
+
+    # Pre-bucket each node's neighbours by their type for O(1) look-up.
+    neighbors_by_type: dict[str, dict[str, list[str]]] = {}
+    for node in nodes:
+        buckets: dict[str, list[str]] = {}
+        for nb in graph.neighbors(node):
+            buckets.setdefault(node_types[nb], []).append(nb)
+        neighbors_by_type[node] = buckets
+
+    rng = np.random.default_rng(42)
+    node_to_idx: dict[str, int] = {node: i for i, node in enumerate(nodes)}
+    n_nodes = len(nodes)
+
+    # ------------------------------------------------------------------ #
+    # Per-type node index (key addition for metapath2vec++)               #
+    # Maps each type label → sorted list of node ids belonging to it.    #
+    # Built once here; used both for validation and for negative sampling.#
+    # ------------------------------------------------------------------ #
+    type_to_nodes: dict[str, list[str]] = {}
+    for node in nodes:
+        type_to_nodes.setdefault(node_types[node], []).append(node)
+
+    # ------------------------------------------------------------------ #
+    # Meta-path random walks (uniform, identical to standard variant)     #
+    # ------------------------------------------------------------------ #
+    def _walk(start_node: str, start_offset: int) -> list[str]:
+        path = [start_node]
+        cur_node, cur_offset = start_node, start_offset
+        for _ in range(walk_length - 1):
+            nxt_offset = (cur_offset + 1) % cycle_length
+            candidates = neighbors_by_type[cur_node].get(metapath_cycle[nxt_offset], [])
+            if not candidates:
+                break
+            cur_node = str(rng.choice(candidates))
+            path.append(cur_node)
+            cur_offset = nxt_offset
+        return path
+
+    walks: list[list[str]] = []
+    for _ in range(num_walks):
+        shuffled = nodes.copy()
+        rng.shuffle(shuffled)
+        for node in shuffled:
+            if node_types[node] not in type_to_offsets:
+                continue  # node type not covered by metapath — not a valid walk start
+            walks.append(_walk(node, type_to_offsets[node_types[node]][0]))
+
+    # ------------------------------------------------------------------ #
+    # min_count filtering                                                  #
+    # ------------------------------------------------------------------ #
+    node_freq: Counter = Counter(n for walk in walks for n in walk)
+    effective_min = max(min_count, 1)
+    valid_nodes: set[str] = {n for n, c in node_freq.items() if c >= effective_min}
+    if not valid_nodes:
+        valid_nodes = set(nodes)
+
+    # ------------------------------------------------------------------ #
+    # Per-type negative-sampling tables  (distribution ∝ freq^0.75)      #
+    # Each type gets its own pool and probability vector so that negatives #
+    # for a context node of type t are drawn solely from V_t.             #
+    # ------------------------------------------------------------------ #
+    type_neg_pool: dict[str, np.ndarray] = {}   # type → array of global node indices
+    type_neg_prob: dict[str, np.ndarray] = {}   # type → sampling probabilities
+
+    for t, t_nodes in type_to_nodes.items():
+        valid_t = [n for n in t_nodes if n in valid_nodes]
+        if not valid_t:
+            continue
+        freqs = np.array([node_freq.get(n, 1) for n in valid_t], dtype=float)
+        probs = freqs ** 0.75
+        probs /= probs.sum()
+        type_neg_pool[t] = np.array([node_to_idx[n] for n in valid_t], dtype=np.intp)
+        type_neg_prob[t] = probs
+
+    # ------------------------------------------------------------------ #
+    # Embedding matrices                                                   #
+    # W     — input  (center) embeddings                                  #
+    # W_ctx — output (context) embeddings                                 #
+    # ------------------------------------------------------------------ #
+    scale = 1.0 / embedding_dim
+    W = rng.uniform(-scale, scale, (n_nodes, embedding_dim))
+    W_ctx = np.zeros((n_nodes, embedding_dim), dtype=float)
+
+    def _sigmoid(x: np.ndarray) -> np.ndarray:
+        return 1.0 / (1.0 + np.exp(-np.clip(x, -10.0, 10.0)))
+
+    # ------------------------------------------------------------------ #
+    # Heterogeneous skip-gram with type-constrained negative sampling     #
+    #                                                                     #
+    # The per-pair Python loop is kept (online SGD semantics preserved)   #
+    # but the three per-pair allocation bottlenecks are eliminated:       #
+    #   • labels buffer pre-allocated once (not np.zeros per pair).       #
+    #   • all_ctx_buf pre-allocated once (not np.concatenate per pair).   #
+    #   • W_ctx update uses broadcasting (not np.outer per pair).         #
+    # rng.choice is batched per type per center: all m_t contexts of the  #
+    # same type get their negatives in a single (m_t, k) call.            #
+    # ------------------------------------------------------------------ #
+
+    # Pre-allocate fixed-size buffers reused across every (center, context) pair.
+    _labels = np.zeros(1 + negative_samples)
+    _labels[0] = 1.0                                   # label for the positive context
+    _all_ctx = np.empty(1 + negative_samples, dtype=np.intp)
+
+    for epoch in range(epochs):
+        epoch_rng = np.random.default_rng(42 + epoch)
+        for walk in walks:
+            walk_len = len(walk)
+            for center_pos in range(walk_len):
+                center_node = walk[center_pos]
+                if center_node not in valid_nodes:
+                    continue
+                center_idx = node_to_idx[center_node]
+
+                # --- Collect context nodes and pre-sample all negatives ---
+                # Group context positions by type so that all m_t contexts
+                # sharing the same type get their (m_t × k) negatives in a
+                # single rng.choice call instead of m_t separate calls.
+                ctx_start = max(0, center_pos - window_size)
+                ctx_end   = min(walk_len, center_pos + window_size + 1)
+
+                type_ctx: dict[str, list[tuple[int, int]]] = {}  # type → [(ctx_idx, pos)]
+                for p in range(ctx_start, ctx_end):
+                    if p == center_pos:
+                        continue
+                    cn = walk[p]
+                    if cn not in valid_nodes:
+                        continue
+                    t = node_types[cn]
+                    type_ctx.setdefault(t, []).append((node_to_idx[cn], p))
+
+                # Build per-context negative index arrays in one pass per type
+                ctx_neg: list[tuple[int, np.ndarray]] = []  # (ctx_idx, neg_indices[k])
+                for t, ctx_list in type_ctx.items():
+                    pool  = type_neg_pool.get(t)
+                    probs = type_neg_prob.get(t)
+                    if pool is None or len(pool) < 2:
+                        continue
+                    n_t = len(ctx_list)
+                    # Single call: (n_t, k) negatives for all contexts of type t
+                    neg_local = epoch_rng.choice(
+                        len(pool), size=(n_t, negative_samples), p=probs, replace=True
+                    )
+                    neg_pool_idx = pool[neg_local]          # (n_t, k)
+                    for row, (ctx_idx, _) in enumerate(ctx_list):
+                        ctx_neg.append((ctx_idx, neg_pool_idx[row]))
+
+                # --- Online SGD: one update per (center, context) pair ---
+                # Exact same update order as the original loop; W is read
+                # fresh each time so online semantics are fully preserved.
+                for ctx_idx, neg_indices in ctx_neg:
+                    _all_ctx[0]  = ctx_idx
+                    _all_ctx[1:] = neg_indices
+
+                    center_vec = W[center_idx]              # (d,)  — re-read each pair
+                    ctx_vecs   = W_ctx[_all_ctx]            # (1+k, d)
+                    sig        = _sigmoid(ctx_vecs @ center_vec)       # (1+k,)
+
+                    err        = sig - _labels              # (1+k,)
+                    grad_ctr   = err @ ctx_vecs             # (d,)
+
+                    # Broadcasting: (-lr * err)[:, None] * center_vec → (1+k, d)
+                    # avoids np.outer and reuses the pre-allocated _all_ctx index.
+                    np.add.at(
+                        W_ctx, _all_ctx,
+                        (-learning_rate * err[:, np.newaxis]) * center_vec,
+                    )
+                    W[center_idx] -= learning_rate * grad_ctr
+
+    # ------------------------------------------------------------------ #
+    # L2-normalise input embeddings                                       #
+    # ------------------------------------------------------------------ #
+    norms = np.linalg.norm(W, axis=1, keepdims=True)
+    nonzero = norms.squeeze() > 0
+    W[nonzero] = W[nonzero] / norms[nonzero]
+
+    # ------------------------------------------------------------------ #
+    # Build output DataFrame                                               #
+    # ------------------------------------------------------------------ #
+    rows = []
+    for node in nodes:
+        idx = node_to_idx[node]
+        row: dict = {"node_id": node, "node_type": node_types[node]}
+        for dim_idx in range(embedding_dim):
+            row[f"emb_{dim_idx + 1}"] = float(W[idx, dim_idx])
+        rows.append(row)
+
+    embeddings_df = pd.DataFrame(rows)
+
+    if output_path is None:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "embedding"
+            / "metapath2vec_pp_embeddings.csv"
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_df.to_csv(output_path, index=False)
+    return embeddings_df, walks
+
+
+def build_metapath2vec_pp_v0(
+    graph: nx.Graph,
+    embedding_dim: int,
+    window_size: int,
+    walk_length: int,
+    num_walks: int,
+    metapath: list[str],
+    negative_samples: int,
+    epochs: int,
+    learning_rate: float,
+    min_count: int,
+    output_path: Path | None = None,
+) -> tuple[pd.DataFrame, list[list[str]]]:
+    """Unoptimised reference implementation of Metapath2Vec++ (Dong et al., KDD '17).
+
+    Identical to :func:`build_metapath2vec_pp` in every algorithmic respect.
+    The only difference is the training loop: this version uses the naive
+    per-pair implementation without any of the three bottleneck optimisations:
+
+    * **B1** — no pre-allocation of ``labels`` / ``all_ctx_idx`` buffers.
+    * **B2** — ``rng.choice`` is called once per (center, context) pair
+      instead of once per type per center.
+    * **B3** — ``np.concatenate``, ``np.zeros``, and ``np.outer`` are
+      called inside the inner loop, allocating new arrays on every pair.
+
+    Intended as a correctness baseline and benchmark reference.
+    Output saved to ``metapath2vec_pp_v0_embeddings.csv``.
+    """
+    from collections import Counter
+
+    # ------------------------------------------------------------------ #
+    # Validation                                                           #
+    # ------------------------------------------------------------------ #
+    if embedding_dim <= 0:
+        raise ValueError("embedding_dim must be > 0.")
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0.")
+    if walk_length <= 1:
+        raise ValueError("walk_length must be > 1.")
+    if num_walks <= 0:
+        raise ValueError("num_walks must be > 0.")
+    if negative_samples <= 0:
+        raise ValueError("negative_samples must be > 0.")
+    if epochs <= 0:
+        raise ValueError("epochs must be > 0.")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be > 0.")
+    if min_count < 0:
+        raise ValueError("min_count must be >= 0.")
+    if len(metapath) < 2:
+        raise ValueError("metapath must contain at least 2 node types.")
+
+    nodes = sorted(graph.nodes())
+    if not nodes:
+        raise ValueError("Cannot compute embeddings on an empty graph.")
+
+    # ------------------------------------------------------------------ #
+    # Graph structures                                                     #
+    # ------------------------------------------------------------------ #
+    node_types: dict[str, str] = {
+        node: str(graph.nodes[node].get("bipartite", "unknown")).strip().lower()
+        for node in nodes
+    }
+    normalized_metapath = [str(t).strip().lower() for t in metapath]
+    if any(not t for t in normalized_metapath):
+        raise ValueError("metapath cannot contain empty node types.")
+
+    unique_node_types = set(node_types.values())
+    unknown_types = sorted(set(normalized_metapath) - unique_node_types)
+    if unknown_types:
+        raise ValueError(
+            "metapath contains node types not present in the graph: "
+            + ", ".join(unknown_types)
+        )
+
+    if normalized_metapath[0] != normalized_metapath[-1]:
+        raise ValueError(
+            "metapath must be in cyclic notation: the last type must equal the "
+            f"first (got '{normalized_metapath[0]}' != '{normalized_metapath[-1]}')."
+        )
+
+    metapath_cycle = normalized_metapath[:-1] or normalized_metapath
+    cycle_length = len(metapath_cycle)
+
+    type_to_offsets: dict[str, list[int]] = {}
+    for idx, t in enumerate(metapath_cycle):
+        type_to_offsets.setdefault(t, []).append(idx)
+
+    neighbors_by_type: dict[str, dict[str, list[str]]] = {}
+    for node in nodes:
+        buckets: dict[str, list[str]] = {}
+        for nb in graph.neighbors(node):
+            buckets.setdefault(node_types[nb], []).append(nb)
+        neighbors_by_type[node] = buckets
+
+    rng = np.random.default_rng(42)
+    node_to_idx: dict[str, int] = {node: i for i, node in enumerate(nodes)}
+    n_nodes = len(nodes)
+
+    # ------------------------------------------------------------------ #
+    # Per-type node index                                                  #
+    # ------------------------------------------------------------------ #
+    type_to_nodes: dict[str, list[str]] = {}
+    for node in nodes:
+        type_to_nodes.setdefault(node_types[node], []).append(node)
+
+    # ------------------------------------------------------------------ #
+    # Meta-path random walks                                               #
+    # ------------------------------------------------------------------ #
+    def _walk(start_node: str, start_offset: int) -> list[str]:
+        path = [start_node]
+        cur_node, cur_offset = start_node, start_offset
+        for _ in range(walk_length - 1):
+            nxt_offset = (cur_offset + 1) % cycle_length
+            candidates = neighbors_by_type[cur_node].get(metapath_cycle[nxt_offset], [])
+            if not candidates:
+                break
+            cur_node = str(rng.choice(candidates))
+            path.append(cur_node)
+            cur_offset = nxt_offset
+        return path
+
+    walks: list[list[str]] = []
+    for _ in range(num_walks):
+        shuffled = nodes.copy()
+        rng.shuffle(shuffled)
+        for node in shuffled:
+            if node_types[node] not in type_to_offsets:
+                continue
+            walks.append(_walk(node, type_to_offsets[node_types[node]][0]))
+
+    # ------------------------------------------------------------------ #
+    # min_count filtering                                                  #
+    # ------------------------------------------------------------------ #
+    node_freq: Counter = Counter(n for walk in walks for n in walk)
+    effective_min = max(min_count, 1)
+    valid_nodes: set[str] = {n for n, c in node_freq.items() if c >= effective_min}
+    if not valid_nodes:
+        valid_nodes = set(nodes)
+
+    # ------------------------------------------------------------------ #
+    # Per-type negative-sampling tables  (distribution ∝ freq^0.75)      #
+    # ------------------------------------------------------------------ #
+    type_neg_pool: dict[str, np.ndarray] = {}
+    type_neg_prob: dict[str, np.ndarray] = {}
+
+    for t, t_nodes in type_to_nodes.items():
+        valid_t = [n for n in t_nodes if n in valid_nodes]
+        if not valid_t:
+            continue
+        freqs = np.array([node_freq.get(n, 1) for n in valid_t], dtype=float)
+        probs = freqs ** 0.75
+        probs /= probs.sum()
+        type_neg_pool[t] = np.array([node_to_idx[n] for n in valid_t], dtype=np.intp)
+        type_neg_prob[t] = probs
+
+    # ------------------------------------------------------------------ #
+    # Embedding matrices                                                   #
+    # ------------------------------------------------------------------ #
+    scale = 1.0 / embedding_dim
+    W = rng.uniform(-scale, scale, (n_nodes, embedding_dim))
+    W_ctx = np.zeros((n_nodes, embedding_dim), dtype=float)
+
+    def _sigmoid(x: np.ndarray) -> np.ndarray:
+        return 1.0 / (1.0 + np.exp(-np.clip(x, -10.0, 10.0)))
+
+    # ------------------------------------------------------------------ #
+    # Heterogeneous skip-gram — naive per-pair loop (no optimisations)    #
+    #                                                                      #
+    # B1: labels and all_ctx_idx allocated fresh on every pair.           #
+    # B2: rng.choice called once per pair (not batched by type).          #
+    # B3: np.concatenate, np.zeros, np.outer called inside the loop.      #
+    # ------------------------------------------------------------------ #
+    for epoch in range(epochs):
+        epoch_rng = np.random.default_rng(42 + epoch)
+        for walk in walks:
+            for center_pos, center_node in enumerate(walk):
+                if center_node not in valid_nodes:
+                    continue
+                center_idx = node_to_idx[center_node]
+                ctx_start = max(0, center_pos - window_size)
+                ctx_end = min(len(walk), center_pos + window_size + 1)
+
+                for ctx_pos in range(ctx_start, ctx_end):
+                    if ctx_pos == center_pos:
+                        continue
+                    ctx_node = walk[ctx_pos]
+                    if ctx_node not in valid_nodes:
+                        continue
+
+                    ctx_idx = node_to_idx[ctx_node]
+                    ctx_type = node_types[ctx_node]
+
+                    pool = type_neg_pool.get(ctx_type)
+                    probs = type_neg_prob.get(ctx_type)
+                    if pool is None or len(pool) < 2:
+                        continue
+
+                    # B2: one rng.choice per pair
+                    neg_local = epoch_rng.choice(
+                        len(pool), size=negative_samples, p=probs, replace=True
+                    )
+                    neg_indices = pool[neg_local]
+
+                    # B3: per-pair allocations
+                    all_ctx_idx = np.concatenate([[ctx_idx], neg_indices])
+                    labels = np.zeros(1 + negative_samples)
+                    labels[0] = 1.0
+
+                    center_vec = W[center_idx]
+                    ctx_vecs = W_ctx[all_ctx_idx]
+                    sig = _sigmoid(ctx_vecs @ center_vec)
+
+                    err = sig - labels
+                    grad_center = err @ ctx_vecs
+
+                    # B3: np.outer per pair
+                    np.add.at(W_ctx, all_ctx_idx, -learning_rate * np.outer(err, center_vec))
+                    W[center_idx] -= learning_rate * grad_center
+
+    # ------------------------------------------------------------------ #
+    # L2-normalise input embeddings                                       #
+    # ------------------------------------------------------------------ #
+    norms = np.linalg.norm(W, axis=1, keepdims=True)
+    nonzero = norms.squeeze() > 0
+    W[nonzero] = W[nonzero] / norms[nonzero]
+
+    # ------------------------------------------------------------------ #
+    # Build output DataFrame                                               #
+    # ------------------------------------------------------------------ #
+    rows = []
+    for node in nodes:
+        idx = node_to_idx[node]
+        row: dict = {"node_id": node, "node_type": node_types[node]}
+        for dim_idx in range(embedding_dim):
+            row[f"emb_{dim_idx + 1}"] = float(W[idx, dim_idx])
+        rows.append(row)
+
+    embeddings_df = pd.DataFrame(rows)
+
+    if output_path is None:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "embedding"
+            / "metapath2vec_pp_v0_embeddings.csv"
         )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     embeddings_df.to_csv(output_path, index=False)
@@ -716,6 +1431,27 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
                     drug_node_ids[int(target_idx)],
                     weight=float(row[target_idx]),
                 )
+
+    original_node_count = n_drugs
+    retained_node_count = sum(1 for n in graph.nodes() if graph.degree(n) > 0)
+    nodes_removed = original_node_count - retained_node_count
+    potential_edges = retained_node_count * (retained_node_count - 1) // 2
+    edges_filtered = potential_edges - graph.number_of_edges()
+
+    filtering_stats = {
+        "similarity_threshold": cosine_threshold,
+        "nodes_removed": nodes_removed,
+        "edges_filtered": edges_filtered,
+        "original_node_count": original_node_count,
+        "retained_node_count": retained_node_count,
+        "potential_edges": potential_edges,
+    }
+    filtering_output_path = (
+        Path(__file__).resolve().parent / "results" / "similarity" / "filtering.json"
+    )
+    filtering_output_path.parent.mkdir(parents=True, exist_ok=True)
+    with filtering_output_path.open("w", encoding="utf-8") as fh:
+        json.dump(filtering_stats, fh, indent=2)
 
     if output_path is None:
         output_path = (

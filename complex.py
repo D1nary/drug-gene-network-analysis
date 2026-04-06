@@ -15,7 +15,10 @@ from network import (
     build_drug_target_network,
     compute_bipartite_graph_stats,
     build_node2vec_embeddings,
-    build_metapath2vec_embeddings,
+    build_metapath2vec_pq,
+    build_metapath2vec_standard,
+    build_metapath2vec_pp,
+    build_metapath2vec_pp_v0,
     build_cosine_similarity_network_from_node2vec_embeddings,
     build_gene_cooccurrence_network,
     build_drug_similarity_network,
@@ -401,6 +404,72 @@ def load_metapath2vec_hyperparameters(
     return hyperparameters
 
 
+def load_metapath2vec_standard_hyperparameters(
+    path: Path,
+) -> dict[str, int | float | list[str]]:
+    """Load and validate the standard Metapath2Vec hyperparameters from JSON.
+
+    Reads the same file as the pq variant but only requires the parameters
+    relevant to the standard algorithm (p and q are ignored).
+    """
+
+    if not path.exists():
+        raise FileNotFoundError(f"metapath2vec hyperparameter file not found at {path}")
+
+    with path.open("r", encoding="utf-8") as handle:
+        hyperparameters = json.load(handle)
+
+    required_keys = {
+        "embedding_dim": int,
+        "window_size": int,
+        "walk_length": int,
+        "num_walks": int,
+        "metapath": list,
+        "negative_samples": int,
+        "epochs": int,
+        "learning_rate": (int, float),
+        "min_count": int,
+    }
+    missing_keys = [key for key in required_keys if key not in hyperparameters]
+    if missing_keys:
+        raise ValueError(
+            "metapath2vec hyperparameter file is missing required keys: "
+            + ", ".join(sorted(missing_keys))
+        )
+
+    for key, expected_type in required_keys.items():
+        if not isinstance(hyperparameters[key], expected_type):
+            raise TypeError(
+                f"Invalid type for metapath2vec hyperparameter '{key}': "
+                f"expected {expected_type}, got {type(hyperparameters[key])}."
+            )
+
+    if hyperparameters["embedding_dim"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'embedding_dim' must be > 0.")
+    if hyperparameters["window_size"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'window_size' must be > 0.")
+    if hyperparameters["walk_length"] <= 1:
+        raise ValueError("metapath2vec hyperparameter 'walk_length' must be > 1.")
+    if hyperparameters["num_walks"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'num_walks' must be > 0.")
+    if hyperparameters["negative_samples"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'negative_samples' must be > 0.")
+    if hyperparameters["epochs"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'epochs' must be > 0.")
+    if hyperparameters["learning_rate"] <= 0:
+        raise ValueError("metapath2vec hyperparameter 'learning_rate' must be > 0.")
+    if hyperparameters["min_count"] < 0:
+        raise ValueError("metapath2vec hyperparameter 'min_count' must be >= 0.")
+    if len(hyperparameters["metapath"]) < 2:
+        raise ValueError("metapath2vec hyperparameter 'metapath' must have length >= 2.")
+    if not all(isinstance(item, str) and item.strip() for item in hyperparameters["metapath"]):
+        raise TypeError(
+            "metapath2vec hyperparameter 'metapath' must contain non-empty strings."
+        )
+
+    return {k: hyperparameters[k] for k in required_keys}
+
+
 def parse_args() -> argparse.Namespace:
     # Build the CLI interface for selecting alternative dataset paths
     parser = argparse.ArgumentParser(
@@ -408,11 +477,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--embedding-algorithm",
-        choices=["node2vec", "metapath2vec"],
-        default="metapath2vec",
+        choices=["node2vec", "metapath2vec", "metapath2vec-standard", "metapath2vec-pp", "metapath2vec-pp-v0"],
+        default="metapath2vec-pp-v0",
         help=(
             "Embedding algorithm to execute when --run-embedding is enabled. "
-            "Choose from: node2vec, metapath2vec. Default: node2vec."
+            "Choose from: node2vec, metapath2vec (pq-biased), metapath2vec-standard "
+            "(uniform transitions), metapath2vec-pp (heterogeneous skip-gram). "
+            "Default: metapath2vec-standard."
         ),
     )
     parser.add_argument(
@@ -478,7 +549,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--similarity-min-degree",
         type=int,
-        default=0,
+        default=10,
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
@@ -524,7 +595,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-embedding",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Run embedding generation before similarity network creation. "
             "Default: disabled."
@@ -533,7 +604,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Run drug-drug similarity network creation from embeddings and save outputs "
             "under results/similarity. Default: disabled."
@@ -542,7 +613,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity-visualization",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Create similarity network visualization from results/similarity outputs. "
             "Default: enabled (use --no-run-similarity-visualization to skip)."
@@ -551,7 +622,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-measurament",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Compute and save per-community measurament metrics from "
             "results/similarity/node_metrics.csv and edge_list.csv. "
@@ -600,10 +671,33 @@ def main() -> None:
             NODE2VEC_HYPERPARAMETERS_PATH
         )
         metapath2vec_hyperparameters = None
+        metapath2vec_standard_hyperparameters = None
     elif embedding_algorithm == "metapath2vec":
-        embedding_output_path = EMBEDDING_DIR / "metapath2vec_embeddings.csv"
+        embedding_output_path = EMBEDDING_DIR / "metapath2vec_pq_embeddings.csv"
         node2vec_hyperparameters = None
         metapath2vec_hyperparameters = load_metapath2vec_hyperparameters(
+            METAPATH2VEC_HYPERPARAMETERS_PATH
+        )
+        metapath2vec_standard_hyperparameters = None
+    elif embedding_algorithm == "metapath2vec-standard":
+        embedding_output_path = EMBEDDING_DIR / "metapath2vec_standard_embeddings.csv"
+        node2vec_hyperparameters = None
+        metapath2vec_hyperparameters = None
+        metapath2vec_standard_hyperparameters = load_metapath2vec_standard_hyperparameters(
+            METAPATH2VEC_HYPERPARAMETERS_PATH
+        )
+    elif embedding_algorithm == "metapath2vec-pp":
+        embedding_output_path = EMBEDDING_DIR / "metapath2vec_pp_embeddings.csv"
+        node2vec_hyperparameters = None
+        metapath2vec_hyperparameters = None
+        metapath2vec_standard_hyperparameters = load_metapath2vec_standard_hyperparameters(
+            METAPATH2VEC_HYPERPARAMETERS_PATH
+        )
+    elif embedding_algorithm == "metapath2vec-pp-v0":
+        embedding_output_path = EMBEDDING_DIR / "metapath2vec_pp_v0_embeddings.csv"
+        node2vec_hyperparameters = None
+        metapath2vec_hyperparameters = None
+        metapath2vec_standard_hyperparameters = load_metapath2vec_standard_hyperparameters(
             METAPATH2VEC_HYPERPARAMETERS_PATH
         )
     else:
@@ -639,7 +733,7 @@ def main() -> None:
                 ),
             )
         elif embedding_algorithm == "metapath2vec":
-            embeddings_df, generated_walks = build_metapath2vec_embeddings(
+            embeddings_df, generated_walks = build_metapath2vec_pq(
                 graph,
                 embedding_dim=metapath2vec_hyperparameters["embedding_dim"],
                 window_size=metapath2vec_hyperparameters["window_size"],
@@ -660,6 +754,72 @@ def main() -> None:
                 (
                     f"({len(embeddings_df)} nodes, "
                     f"{metapath2vec_hyperparameters['embedding_dim']} dims)"
+                ),
+            )
+        elif embedding_algorithm == "metapath2vec-standard":
+            embeddings_df, generated_walks = build_metapath2vec_standard(
+                graph,
+                embedding_dim=metapath2vec_standard_hyperparameters["embedding_dim"],
+                window_size=metapath2vec_standard_hyperparameters["window_size"],
+                walk_length=metapath2vec_standard_hyperparameters["walk_length"],
+                num_walks=metapath2vec_standard_hyperparameters["num_walks"],
+                metapath=metapath2vec_standard_hyperparameters["metapath"],
+                negative_samples=metapath2vec_standard_hyperparameters["negative_samples"],
+                epochs=metapath2vec_standard_hyperparameters["epochs"],
+                learning_rate=metapath2vec_standard_hyperparameters["learning_rate"],
+                min_count=metapath2vec_standard_hyperparameters["min_count"],
+                output_path=embedding_output_path,
+            )
+            print(
+                "metapath2vec-standard embeddings saved to",
+                embedding_output_path,
+                (
+                    f"({len(embeddings_df)} nodes, "
+                    f"{metapath2vec_standard_hyperparameters['embedding_dim']} dims)"
+                ),
+            )
+        elif embedding_algorithm == "metapath2vec-pp":
+            embeddings_df, generated_walks = build_metapath2vec_pp(
+                graph,
+                embedding_dim=metapath2vec_standard_hyperparameters["embedding_dim"],
+                window_size=metapath2vec_standard_hyperparameters["window_size"],
+                walk_length=metapath2vec_standard_hyperparameters["walk_length"],
+                num_walks=metapath2vec_standard_hyperparameters["num_walks"],
+                metapath=metapath2vec_standard_hyperparameters["metapath"],
+                negative_samples=metapath2vec_standard_hyperparameters["negative_samples"],
+                epochs=metapath2vec_standard_hyperparameters["epochs"],
+                learning_rate=metapath2vec_standard_hyperparameters["learning_rate"],
+                min_count=metapath2vec_standard_hyperparameters["min_count"],
+                output_path=embedding_output_path,
+            )
+            print(
+                "metapath2vec-pp embeddings saved to",
+                embedding_output_path,
+                (
+                    f"({len(embeddings_df)} nodes, "
+                    f"{metapath2vec_standard_hyperparameters['embedding_dim']} dims)"
+                ),
+            )
+        elif embedding_algorithm == "metapath2vec-pp-v0":
+            embeddings_df, generated_walks = build_metapath2vec_pp_v0(
+                graph,
+                embedding_dim=metapath2vec_standard_hyperparameters["embedding_dim"],
+                window_size=metapath2vec_standard_hyperparameters["window_size"],
+                walk_length=metapath2vec_standard_hyperparameters["walk_length"],
+                num_walks=metapath2vec_standard_hyperparameters["num_walks"],
+                metapath=metapath2vec_standard_hyperparameters["metapath"],
+                negative_samples=metapath2vec_standard_hyperparameters["negative_samples"],
+                epochs=metapath2vec_standard_hyperparameters["epochs"],
+                learning_rate=metapath2vec_standard_hyperparameters["learning_rate"],
+                min_count=metapath2vec_standard_hyperparameters["min_count"],
+                output_path=embedding_output_path,
+            )
+            print(
+                "metapath2vec-pp-v0 embeddings saved to",
+                embedding_output_path,
+                (
+                    f"({len(embeddings_df)} nodes, "
+                    f"{metapath2vec_standard_hyperparameters['embedding_dim']} dims)"
                 ),
             )
         else:

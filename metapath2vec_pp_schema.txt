@@ -1,0 +1,199 @@
+================================================================================
+  METAPATH2VEC++  —  build_metapath2vec_pp()
+  Dong, Chawla & Swami · KDD 2017 · §3.2  Heterogeneous Negative Sampling
+================================================================================
+
+INPUT
+  graph            : nx.Graph   (bipartite; nodes carry "bipartite" type attr)
+  embedding_dim    : int        (d)
+  window_size      : int        (w)
+  walk_length      : int        (l)
+  num_walks        : int        (r)
+  metapath         : list[str]  e.g. ["drug","target","drug"]
+  negative_samples : int        (k)
+  epochs           : int
+  learning_rate    : float      (α)
+  min_count        : int
+
+OUTPUT
+  embeddings_df : pd.DataFrame  columns: node_id, node_type, emb_1…emb_d
+  walks         : list[list[str]]
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 0 · VALIDATION
+────────────────────────────────────────────────────────────────────────────────
+
+  ┌──────────────────────────────────────────────┐
+  │  Check all hyperparameters > 0               │
+  │  Check graph is non-empty                    │
+  │  Check metapath types ⊆ graph node types     │
+  │  Check every graph type appears in metapath  │
+  └──────────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 1 · GRAPH INDEXING
+────────────────────────────────────────────────────────────────────────────────
+
+  nodes        = sorted(graph.nodes())
+  node_types   = { v → type(v) }          from "bipartite" attribute
+
+  metapath_cycle = metapath[:-1]           drop repeated last element
+                                           e.g. ["drug","target","drug"] → ["drug","target"]
+
+  type_to_offsets  = { type → [positions in metapath_cycle] }
+                     used to find valid start offset for each node
+
+  neighbors_by_type = { v → { type → [neighbours of that type] } }
+                      O(1) look-up of typed neighbours during walk
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  PER-TYPE NODE INDEX  (key structure for metapath2vec++)        │
+  │                                                                 │
+  │  type_to_nodes = { t → [v ∈ V  |  type(v) = t] }              │
+  │                                                                 │
+  │  Built once here; seeds the negative-sampling tables in Phase 3 │
+  └─────────────────────────────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 2 · META-PATH RANDOM WALKS  (identical to metapath2vec standard)
+────────────────────────────────────────────────────────────────────────────────
+
+  For r = 1…num_walks:
+    shuffle nodes randomly
+    For each start_node v:
+
+      walk = [v]
+      cur_offset = type_to_offsets[type(v)][0]
+
+      For step = 1…(walk_length − 1):
+        next_type    = metapath_cycle[(cur_offset + 1) % cycle_length]
+        candidates   = neighbors_by_type[cur_node][next_type]
+        if candidates = ∅ → stop walk early
+        next_node    = Uniform(candidates)          ← uniform, no p/q bias
+        walk.append(next_node)
+        cur_offset   = (cur_offset + 1) % cycle_length
+
+  Result: walks  (list of r × |nodes| variable-length node sequences)
+
+  ┌──────────────────────────────────┐
+  │  min_count filtering             │
+  │  node_freq  = frequency of each  │
+  │  node across all walks           │
+  │  valid_nodes = {v | freq ≥ min}  │
+  └──────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 3 · PER-TYPE NEGATIVE-SAMPLING TABLES
+────────────────────────────────────────────────────────────────────────────────
+
+  For each type t:
+    V_t = type_to_nodes[t]  ∩  valid_nodes      (type-specific node set)
+
+    freq_t[v]  = node_freq[v]  for v ∈ V_t
+    prob_t[v]  = freq_t[v]^0.75 / Σ freq_t^0.75   (smoothed unigram)
+
+    type_neg_pool[t] = array of global indices of V_t
+    type_neg_prob[t] = prob_t
+
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  DIFFERENCE vs. metapath2vec standard                                │
+  │                                                                      │
+  │  Standard   : one global pool over V, one global prob vector         │
+  │  This (pp)  : one pool per type t over V_t, one prob vector per t    │
+  │                                                                      │
+  │  Sampling distribution P_t(·) is conditioned on the context type t   │
+  └──────────────────────────────────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 4 · EMBEDDING MATRICES
+────────────────────────────────────────────────────────────────────────────────
+
+  W     : shape (|V|, d)   input  (center) embeddings   ~ Uniform(−1/d, 1/d)
+  W_ctx : shape (|V|, d)   output (context) embeddings  = 0
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 5 · HETEROGENEOUS SKIP-GRAM WITH NEGATIVE SAMPLING
+────────────────────────────────────────────────────────────────────────────────
+
+  For epoch = 1…epochs:
+    For each walk:
+      For each center_node v at position p:
+        if v ∉ valid_nodes → skip
+
+        window = walk[ max(0,p−w) … min(l,p+w+1) ] \ {v}
+
+        For each context_node c_t in window:
+          if c_t ∉ valid_nodes → skip
+
+          t = type(c_t)
+
+          ┌──────────────────────────────────────────────────────────┐
+          │  HETEROGENEOUS NEGATIVE SAMPLING                         │
+          │                                                          │
+          │  Draw k negative nodes n_1…n_k  from V_t  via P_t(·)   │
+          │  (NOT from global V as in standard metapath2vec)         │
+          │                                                          │
+          │  p(c_t | v; θ) = exp(X_c_t · X_v)                      │
+          │                  ─────────────────────────               │
+          │                  Σ_{u_t ∈ V_t} exp(X_u_t · X_v)        │
+          └──────────────────────────────────────────────────────────┘
+
+          all_ctx  = [c_t, n_1, …, n_k]
+          labels   = [1,   0, …, 0  ]
+
+          ── Forward ──────────────────────────────────────────────
+          center_vec = W[v]                        shape: (d,)
+          ctx_vecs   = W_ctx[all_ctx]              shape: (1+k, d)
+          σ          = sigmoid(ctx_vecs @ center_vec)   (1+k,)
+
+          ── Gradients (binary cross-entropy) ─────────────────────
+          err          = σ − labels                (1+k,)
+          ∂L/∂W[v]    = err ᵀ · ctx_vecs          (d,)
+          ∂L/∂W_ctx   = outer(err, center_vec)     (1+k, d)
+
+          ── Update ───────────────────────────────────────────────
+          W_ctx[all_ctx] -= α · ∂L/∂W_ctx         (via np.add.at)
+          W[v]           -= α · ∂L/∂W[v]
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 6 · POST-PROCESSING
+────────────────────────────────────────────────────────────────────────────────
+
+  L2-normalise W row-wise:
+    W[v] ← W[v] / ‖W[v]‖₂   for all v with ‖W[v]‖₂ > 0
+
+────────────────────────────────────────────────────────────────────────────────
+PHASE 7 · OUTPUT
+────────────────────────────────────────────────────────────────────────────────
+
+  Build DataFrame:
+    columns = [node_id, node_type, emb_1, emb_2, …, emb_d]
+    one row per node, embedding taken from W
+
+  Save to CSV:
+    results/embedding/metapath2vec_pp_embeddings.csv
+
+  Return (embeddings_df, walks)
+
+================================================================================
+COMPLEXITY SUMMARY
+================================================================================
+
+  Walk generation  : O(r · |V| · l)
+  Neg-sample tables: O(|V|)   — built once
+  Skip-gram train  : O(epochs · r · |V| · l · w · (1+k) · d)
+                     inner loop identical to standard;
+                     the only overhead vs. standard is the per-type pool
+                     look-up, which is O(1)
+
+================================================================================
+KEY DIFFERENCE vs. metapath2vec_standard
+================================================================================
+
+  metapath2vec          →  negatives ~ P(u),      u ∈ V        (global)
+  metapath2vec++  (this)→  negatives ~ P_t(u_t),  u_t ∈ V_t   (per-type)
+
+  Everything else (walk generation, skip-gram structure, hyperparameters,
+  output format) is identical.
+
+================================================================================
