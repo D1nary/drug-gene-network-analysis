@@ -115,6 +115,35 @@ Per quanto riguarda la distribuzione delle dimensioni delle comunità, si osserv
 
 Dal punto di vista biologico, la struttura a coda lunga può indicare un nucleo grande di farmaci o geni hub con profili di interazione condivisi insieme a numerosi farmaci con target più specifici che formano piccoli cluster o rimangono isolati.
 
+
+La distrubuzione delle dimensioni delle comunità può essere osservata anche dai dati nella seguente tabella:
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Size range} 
+    & \multicolumn{2}{c}{\textbf{Embedding-based}} 
+    & \multicolumn{2}{c}{\textbf{Jaccard-based}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    & \textbf{Count} & \textbf{\%} 
+    & \textbf{Count} & \textbf{\%} \\
+\midrule
+Size $< 5$              & 123 & 86.01 & 219 & 83.91 \\
+$5 \leq$ Size $\leq 50$ & 11  & 7.69  & 38  & 14.56 \\
+$50 <$ Size $\leq 100$  & 4   & 2.80  & 3   & 1.15  \\
+Size $> 100$            & 5   & 3.50  & 1   & 0.38  \\
+\bottomrule
+\end{tabular}
+\caption{Distribution of community sizes for the embedding-based (143 communities) and Jaccard-based (261 communities) similarity networks detected via the Louvain algorithm.}
+\label{tab:community_size_distribution}
+\end{table}
+
+Tra le 5 comunità più grandi abbiamo la community_112 e la community_48 con rispettivamente 191 e 377 elementi. These may correspond to areas associated with widely studied targets or pathways. Another plausible reason for their presence may be the intrinsic nature of the dataset. Indeed, it contains data obtained through variants of the same experimental condition or under different conditions of the same compound.
+
+Since these drugs act on very similar gene sets, more in-depth analyses could be con- ducted to investigate possible therapeutic combinations, including among drugs belonging to closely connected communities.
+
+The high number of small pharmacological modules can indicate rare or highly specific profiles or may represent mechanisms of action that are poorly redundant or scarcely explored and, with further analysis, may serve as interesting starting points for the study of new drugs.
+
 ## Jaccard
 
 La Louvain community detection applicata alla rete di similarità ottenuta tramite il jaccard-based method crea una struttura con 261 comunità.
@@ -124,9 +153,13 @@ La modurarity è più bassa con un valore di 0.20. Questo indica la presenza di 
 
 Anche in questo caso si ha la presenza di una distribuzione delle size delle community fortemente spostata verso destra con una mediana uguale a 2 indicando che più della metà delle comunity è composta da 2 farmaci o meno. Il valore medio è approssitivamente 5. In questo caso la comunità più grande possiede 359 elementi.
 
+Analizzando la tabella community_size_distribution emerge che le differenze maggiori tra i due metodi per quanto riguarda la distribuzione delle size delle commnity avviene per dimenzioni più elevate. La quota di comunità di dimensione intermedia (5 ≤ size ≤ 50) è considerevolmente più alta nel caso Jaccard (14.56% vs 7.69%), mentre la presenza di comunità molto grandi risulta piuttosto ridotta. Infatti una sola comunità supera i 100 nodi (0.38%), contro le cinque del metodo embedding-based (3.50%).
+
 Di seguito è riportato l'istogramma della distribuzione delle size delle comunità per entrambi i metodi
 
 IMMAGINE
+
+
 
 
 
