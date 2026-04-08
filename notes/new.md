@@ -159,8 +159,33 @@ Di seguito è riportato l'istogramma della distribuzione delle size delle comuni
 
 IMMAGINE
 
+## Intra-community analisis
+Per ogni community network creata (embedding-based e jaccard-based) e per ogni community identificata dall'algoritmo di Louvain, viene calcolata density e clustering coefficient del subgrafo indotto dalla community stessa. Il subgrafo indotto è definito come il sottografo del grafo di similarità che include esclusivamente i farmaci appartenenti alla community e gli archi che li connettono tra loro.
+### Density
+La density, come nel caso precedente, è definita come il rapporto tra il numero di archi presenti nel subgrafo e il numero massimo di archi possibili tra i nodi del subgrafo:
+$$\text{density} = \frac{2|E|}{|V|(|V|-1)}$$
+
+dove $|V|$ è il numero di farmaci nella community e $|E|$ è il numero di archi di similarità tra farmaci della stessa community.
+
+In small modules, the number of possible connections is very limited. In fact, it is sufficient for a few nodes to be all connected to each other for the density to be high, often close to 1. This reflects a very strong similarity among the drugs in the group (for example, almost complete sharing of targets), but such values are not very robust from a statistical point of view, because they are strongly influenced by the low number of nodes. For this reason, they were removed from the analysis, considering only communities with size greater than or equal to 5.
+
+#### EMBEDDING
+Per quanto riguarda l'embedding-based, sono state calcolate le seguenti density:
+
+GRAFICO SIZE-DENSITY
+
+ISTOGRAMMA DENSITY MEDIA
 
 
+Il range 5-50 mostra densità media intorno a 0.62 con varianza elevata. In questo range ci sono sia community quasi clique come i nodi 92 e 126 con density = 1, sia community più sparse ($\approx 0.23-0.26$). In questo range convivono quindi trutture qualitativamente diverse. Questo potrebbe essere dovuto al piccolo numero di nodi all'interno della community. Infatti the quadratic scaling of the density denominator fa si che la density di queste community sia molto sensibile alla variazione anche solo di un arco all'interno della community
+
+Come si può osservare dal grafico sopra, nel range 50-100 la density ha una bassa varianza con un valore medio $\approx 0.20$. CI si può aspettare questo comportamento visto the quadratic scaling of the density denominator at larger sizes.
+
+
+
+
+### Clustering coefficient
+### degree?
 
 
 
