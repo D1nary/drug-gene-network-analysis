@@ -291,6 +291,7 @@ def visualize_random_drug_target_subgraph(
 def visualize_similarity_subgraph(
     graph: Optional[nx.Graph] = None,
     title: Optional[str] = None,
+    filename: Optional[str] = None,
     seed: Optional[int] = None,
     min_degree: int = 10,
     max_nodes: Optional[int] = None,
@@ -547,7 +548,8 @@ def visualize_similarity_subgraph(
 
     target_dir = output_dir if output_dir is not None else SIMILARITY_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
-    output_path = target_dir / f"{_sanitize_title(title)}.png"
+    file_stem = filename if filename is not None else _sanitize_title(title)
+    output_path = target_dir / f"{file_stem}.png"
     # Persist figure to the selected directory.
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()

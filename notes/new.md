@@ -159,8 +159,11 @@ Di seguito è riportato l'istogramma della distribuzione delle size delle comuni
 
 IMMAGINE
 
+Le due similarity network ottenute per entrambi i metodi sono visualizzate di seguito:
+
+
 ## Intra-community analisis
-Per ogni community network creata (embedding-based e jaccard-based) e per ogni community identificata dall'algoritmo di Louvain, viene calcolata density e clustering coefficient del subgrafo indotto dalla community stessa. Il subgrafo indotto è definito come il sottografo del grafo di similarità che include esclusivamente i farmaci appartenenti alla community e gli archi che li connettono tra loro.
+Per ciascuna delle due reti di community (embedding-based e Jaccard-based), e per ogni community individuata dall'algoritmo di Louvain, vengono calcolati la densità e il clustering coefficient del sottografo indotto dalla community. Tale sottografo è definito come la porzione del grafo di similarità che include unicamente i farmaci appartenenti alla community e gli archi che li collegano reciprocamente.
 ### Density
 La density, come nel caso precedente, è definita come il rapporto tra il numero di archi presenti nel subgrafo e il numero massimo di archi possibili tra i nodi del subgrafo:
 $$\text{density} = \frac{2|E|}{|V|(|V|-1)}$$
@@ -170,26 +173,95 @@ dove $|V|$ è il numero di farmaci nella community e $|E|$ è il numero di archi
 In small modules, the number of possible connections is very limited. In fact, it is sufficient for a few nodes to be all connected to each other for the density to be high, often close to 1. This reflects a very strong similarity among the drugs in the group (for example, almost complete sharing of targets), but such values are not very robust from a statistical point of view, because they are strongly influenced by the low number of nodes. For this reason, they were removed from the analysis, considering only communities with size greater than or equal to 5.
 
 #### EMBEDDING
-Per quanto riguarda l'embedding-based, sono state calcolate le seguenti density:
+Per quanto riguarda l'embedding-based method, sono state calcolate le seguenti density:
+
+TABELLA
+
+Il range 5-50 mostra densità media intorno a 0.62 con varianza elevata. In questo range ci sono sia community quasi clique come i nodi 92 e 126 con density = 1, sia community più sparse ($\approx 0.23-0.26$). Quindi qui convivono strutture qualitativamente diverse. Questo potrebbe essere dovuto al piccolo numero di nodi all'interno della community. Infatti the quadratic scaling of the density denominator fa si che la density di queste community sia molto sensibile alla variazione anche solo di un arco all'interno della community
+
+Come si può anche osservare dal grafico sottostante, nel range 50-100 la density ha una bassa varianza con un valore medio $\approx 0.20$. Ci si può aspettare questo comportamento visto the quadratic scaling of the density denominator at larger sizes.
+
+Per quanto riguarda le 5 community più grandi, si osservano bassi valori di density, come ci si aspetterebbe per comunità così grandi, tranne in due casi. Questi sono la community più grande ovvero la community_48 (size = 377) e la community_98 (size = 146) con densità rispettivamente di 0.57 e 0.68. Queste sono strutture molto dense e grandi, le quali rappresentano casi di particolare interesse.
+
+---
+Osservando la formula della density si capisce perchè per reti grandi ci si aspetta un valore di density basso per community grandi:
+
+Il denominatore cresce quadraticamente con k (size), mentre il numero di archi reali ∣E∣ tende a crescere molto più lentamente — tipicamente in modo lineare o sub-quadratico nelle reti reali. Quindi anche se una community grande ha molti archi in valore assoluto, il rapporto density crolla inevitabilmente.
+
+---
+
+Tali comunità possono rappresentare hub farmacologici, ovvero insiemi di farmaci che condividono un elevato numero di target genici comuni, dando origine a zone della rete caratterizzate da alta densità di connessioni. Oppure, possono raggruppare farmaci che agiscono su pathway biologici centrali e condivisi.
+
+Un'altra possibile ragione per la formazione di queste comunità grandi e dense potrebbe provenire dalla natura intrinseca del dataset. It does not only aggregate information coming from different sources (real screenings, experimental data, computationally generated results), but also information about the same compound obtained from different experimental conditions. This, combined with the fact that the drug IDs within the dataset do not distinguish the experimental context in which the data were produced, may lead to the generation of drugs with identical or nearly identical profiles
 
 GRAFICO SIZE-DENSITY
 
-ISTOGRAMMA DENSITY MEDIA
+ISTOGRAMMA DENSITY E CLUSTERING MEDIO
+
+### Clustering coefficient (CC)
+Il CC è strutturalmente più stabile rispetto alla density infatti i suoi valori medi rimangono nel range  0.62–0.74. Questo indica che anche quando sono globalmente sparse, le community mantengono una struttura locale triangolare robusta.
+
+Nel range 5-50 il CC è alto e più variabile rispetto agli altri range. Qui abbiamo community molto piccole con struttura quasi-clique (CC $\approx$ 0.90–0.94) accanto a community più grandi e sparse (CC $\approx$ 0.50–0.58)
+
+Negli altri due range, il CC è più omogeneo ed entrambi mostrano valori molto simili con standard deviation bassa ($0.624 \pm 0.049$ , $0.640 \pm 0.058$). Questo indica una struttura locale simile tra i due range nonostante la differenza di dimensione. 
+
+Confrontando i valori di density e CC si osserva che, nel range piccolo (5–50), i due valori medi sono relativamente vicini (density 0.638, CC 0.741), il che è atteso. Nel range medio e grande invece, la density crolla metre il CC rimane comunque $\approx 0.60$. Questo disaccopiamento indica una struttura composta da zone dense separate dalle altre da connessioni deboli. Biologicalmente parlando, questo potrebbe indicare la presenza, all'interno di una stessa comunity, di gruppi di farmaci con target genici fortemente sovrapposti ma con poca sovrapposizione tra gruppi diversi.
+
+---
+community dense tendono ad avere anche CC alto, il che è atteso. Come mai?
+
+Immagina una community con density molto alta — quasi tutti i possibili archi esistono. Prendi un nodo *v* qualsiasi con vicini *u* e *w*: poiché la density è alta, è molto probabile che anche l'arco *u*-*w* esista. Il triangolo *v*-*u*-*w* è quindi quasi certamente chiuso.
+
+In altre parole: **se la rete è globalmente densa, ogni coppia di nodi ha alta probabilità di essere connessa, incluse le coppie di vicini comuni**. Il CC non fa altro che misurare localmente questa stessa proprietà — e in una rete densa non può che essere alto.
+
+----
+
+---
+Ma se all'interno di una stessa community abbiamo gruppi di farmaci con target genici fortemente sovrapposti al proprio interno, ma con poca sovrapposizione tra gruppi diversi.
+Come mai questi farmaci che sono separati all'interno di una stessa comunity sono stati messi nella stessa community?
+
+Louvain non assegna i nodi a una community perché sono tutti densamente connessi tra loro in senso assoluto. Li assegna insieme perché hanno più connessioni tra loro di quante ne avrebbe un grafo casuale con la stessa distribuzione di gradi. È una misura relativa, non assoluta.
+Quindi due sottogruppi di farmaci possono finire nella stessa community anche se la loro sovrapposizione reciproca è bassa, purché quella sovrapposizione sia comunque superiore all'atteso per caso.
+---
+
+È interessante notare che le due community 98 e 48 precedentemente analizzate mantengono un CC in linea con il resto del range.
 
 
-Il range 5-50 mostra densità media intorno a 0.62 con varianza elevata. In questo range ci sono sia community quasi clique come i nodi 92 e 126 con density = 1, sia community più sparse ($\approx 0.23-0.26$). In questo range convivono quindi trutture qualitativamente diverse. Questo potrebbe essere dovuto al piccolo numero di nodi all'interno della community. Infatti the quadratic scaling of the density denominator fa si che la density di queste community sia molto sensibile alla variazione anche solo di un arco all'interno della community
 
-Come si può osservare dal grafico sopra, nel range 50-100 la density ha una bassa varianza con un valore medio $\approx 0.20$. CI si può aspettare questo comportamento visto the quadratic scaling of the density denominator at larger sizes.
-
-
-
-
-### Clustering coefficient
 ### degree?
 
+## Jaccard-based
+
+Per quanto riguarda il Jaccard-based method, sono state calcolate le seguenti density:
+
+TABELLA
+
+Il range 50-100 mostra una density elevata con una deviazione standard più bassa rispetto allo stesso range nel embedding-based method. La presenza di numerose componenti con density = 1 è una caratteristica distintiva di questa rete e potrebbe essere dovuta alla natura della similarità prodotta dal Jaccard method. Infatti, operando direttamente sul profilo genico dei farmaci nel grafo bipartito, tende a produrre clique o near-clique per farmaci che condividono interamente o quasi il proprio target set. Come accade nella rete embedding-based il quadratic scaling del denominatore della density rende questo parametro molto sensibile alla variazione di singoli archi nelle community più piccole, il che spiega l'ampiezza dei valori di denità ($\approx 0.30 - 1.00$).
+
+Il range 50-100 evidenzia la differenza più sostanziale in termini di valore medio e deviazione standard. In questo range sono presenti 3 community 2 delle quali simili in termini di densità e una diversa molto più sparsa.
+
+Nel range size > 100 è presente una sola community con $\text{size} = 359$ e $\text{density} \approx 1.00$. Questo rappresenta un risultato strutturalmente molto diverso da quanto osservato nella rete embedding-based, dove le community più grandi mostravano density nell'intervallo 0.57–0.68. La Jaccard similarity, identifica qui un enorme insieme di farmaci a profilo genico quasi identico. Come osservato nel caso delle community di grandi dimensioni nel metodo embedding-based, le possibili ragioni alla base della formazione di questa community sono possono essere riconducibili alla presenza di farmaci che agiscono su pathway biologici centrali, oppure alla natura intrinseca del dataset.
+
+### CC
+Nel range 5-50, in particolare per le community clique isolate (degree = 0) di piccole  dimensioni si nota un valore di CC nullo nonostante density unitaria. Escludendo queste utime, si ottiene un sottoinsieme di 16 community il cui CC medio è $\approx 0.661 \pm 0.131$, in linea con i valori osservati nell'analisi embedding-based. Quindi, strutture quasi-clique coesistono con strutture più sparse.
 
 
+Nel range intermedio è da notare che tutti e tre i valori che non mostrano il fenomeno CC = 0.
 
+La big community clique, ha un CC = 0.903. L'accoppiamento density-CC alto indica che tale community oltre ad essere densa mantiene anche una stuttura traingolare locale.
+
+Precedentemente (embedding-based method) si era ossevato, un pattern di dicaccoppiamento tra density e CC in cui si aveva la presenza di community sparse ma localmente connesse. Nel contesto del Jaccard method, questo non accade. Nei range 50-100 e size>100 la maggiornanza delle community (ad eccezzione della community_188) presenta un accoppiamento tra i due valori. Si può concludere che nella rete Jaccard, farmaci con un profilo di target genici molto simile tendono a formare community in cui sia la densità globale che la connettività locale sono elevate mentre l'embedding genera strutture composte da zone più dense separate da ponti più deboli all'interno della stessa community.
+
+GRAFICO SIZE-DENSITY
+
+ISTOGRAMMA DENSITY E CLUSTERING MEDIO
+
+## Considerazioni finali
+Strutturalmente la jaccard similarity produce community compatte in cui density e CC hanno valori molto vicini fra loro. Al contrario la rete embedding-based genera strutture più eterogenee (globalmente sparse ma localmente coese) caratterizzate dal disaccoppiamento tra density e CC osservato nei range medio-grandi.
+
+Biologicamente parlando, l'embedding-based meethod, lavorando nello spazio delle rappresentazioni vettoriali cattura similarità più latenti e sfumate permettendo di raggruppare farmaci che non condividono necessariamente gli stessi target ma che occupano posizioni analoghe nel grafo bipartito. Questo può essere interpretato come una maggiore capacità di indiivduare analogie indirette. Al contratio, il jaccard method opera direttamente sul profilo genico dei farmaci producendo una similarità di tipo binario la quale può non cogliere sfumature che l'embedding method riescie invece a trovre. In questo contesto l'embedding method potrebbe essere biologicamente più informativo meritando un'analisi più approfondita.
+
+Entrambi i metodi sono soggetti alla natura del dataset che aggrega dati da contesti sperimentali diversi senza distinguere le condizioni di acquisizione. Anche se, il metodo jaccard potrebbe essere più sensibile a questo fattore producendo più comunità clique.
 
 
 

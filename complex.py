@@ -549,7 +549,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--similarity-min-degree",
         type=int,
-        default=10,
+        default=1,
         help="Minimum node degree required to visualize similarity network nodes.",
     )
     parser.add_argument(
@@ -604,7 +604,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Run drug-drug similarity network creation from embeddings and save outputs "
             "under results/similarity. Default: disabled."
@@ -876,7 +876,8 @@ def main() -> None:
     if args.run_similarity_visualization:
         similarity_snapshot = visualize_similarity_subgraph(
             min_degree=args.similarity_min_degree,
-            title="similarity_network",
+            title="Similarity-network (embedding-based algorithm)",
+            filename="similarity_network",
         )
         print(
             "Similarity network visualization:",
