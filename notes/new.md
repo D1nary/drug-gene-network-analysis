@@ -164,18 +164,19 @@ Le due similarity network ottenute per entrambi i metodi sono visualizzate di se
 
 ## Intra-community analisis
 Per ciascuna delle due reti di community (embedding-based e Jaccard-based), e per ogni community individuata dall'algoritmo di Louvain, vengono calcolati la densità e il clustering coefficient del sottografo indotto dalla community. Tale sottografo è definito come la porzione del grafo di similarità che include unicamente i farmaci appartenenti alla community e gli archi che li collegano reciprocamente.
-### Density
+### EMBEDDING BASED
+
+Per quanto riguarda l'embedding-based method, sono state calcolate le seguenti density:
+
+TABELLA
+
+#### Density
 La density, come nel caso precedente, è definita come il rapporto tra il numero di archi presenti nel subgrafo e il numero massimo di archi possibili tra i nodi del subgrafo:
 $$\text{density} = \frac{2|E|}{|V|(|V|-1)}$$
 
 dove $|V|$ è il numero di farmaci nella community e $|E|$ è il numero di archi di similarità tra farmaci della stessa community.
 
 In small modules, the number of possible connections is very limited. In fact, it is sufficient for a few nodes to be all connected to each other for the density to be high, often close to 1. This reflects a very strong similarity among the drugs in the group (for example, almost complete sharing of targets), but such values are not very robust from a statistical point of view, because they are strongly influenced by the low number of nodes. For this reason, they were removed from the analysis, considering only communities with size greater than or equal to 5.
-
-#### EMBEDDING
-Per quanto riguarda l'embedding-based method, sono state calcolate le seguenti density:
-
-TABELLA
 
 Il range 5-50 mostra densità media intorno a 0.62 con varianza elevata. In questo range ci sono sia community quasi clique come i nodi 92 e 126 con density = 1, sia community più sparse ($\approx 0.23-0.26$). Quindi qui convivono strutture qualitativamente diverse. Questo potrebbe essere dovuto al piccolo numero di nodi all'interno della community. Infatti the quadratic scaling of the density denominator fa si che la density di queste community sia molto sensibile alla variazione anche solo di un arco all'interno della community
 
@@ -232,15 +233,19 @@ Quindi due sottogruppi di farmaci possono finire nella stessa community anche se
 
 ## Jaccard-based
 
-Per quanto riguarda il Jaccard-based method, sono state calcolate le seguenti density:
+Per quanto riguarda il Jaccard-based method, sono state calcolate le seguenti density e i seguenti clustering coefficients:
 
 TABELLA
+
+ISTOGRAMMA DENSITY E CLUSTERING MEDIO
 
 Il range 50-100 mostra una density elevata con una deviazione standard più bassa rispetto allo stesso range nel embedding-based method. La presenza di numerose componenti con density = 1 è una caratteristica distintiva di questa rete e potrebbe essere dovuta alla natura della similarità prodotta dal Jaccard method. Infatti, operando direttamente sul profilo genico dei farmaci nel grafo bipartito, tende a produrre clique o near-clique per farmaci che condividono interamente o quasi il proprio target set. Come accade nella rete embedding-based il quadratic scaling del denominatore della density rende questo parametro molto sensibile alla variazione di singoli archi nelle community più piccole, il che spiega l'ampiezza dei valori di denità ($\approx 0.30 - 1.00$).
 
 Il range 50-100 evidenzia la differenza più sostanziale in termini di valore medio e deviazione standard. In questo range sono presenti 3 community 2 delle quali simili in termini di densità e una diversa molto più sparsa.
 
 Nel range size > 100 è presente una sola community con $\text{size} = 359$ e $\text{density} \approx 1.00$. Questo rappresenta un risultato strutturalmente molto diverso da quanto osservato nella rete embedding-based, dove le community più grandi mostravano density nell'intervallo 0.57–0.68. La Jaccard similarity, identifica qui un enorme insieme di farmaci a profilo genico quasi identico. Come osservato nel caso delle community di grandi dimensioni nel metodo embedding-based, le possibili ragioni alla base della formazione di questa community sono possono essere riconducibili alla presenza di farmaci che agiscono su pathway biologici centrali, oppure alla natura intrinseca del dataset.
+
+GRAFICO DENSITY SCATTER
 
 ### CC
 Nel range 5-50, in particolare per le community clique isolate (degree = 0) di piccole  dimensioni si nota un valore di CC nullo nonostante density unitaria. Escludendo queste utime, si ottiene un sottoinsieme di 16 community il cui CC medio è $\approx 0.661 \pm 0.131$, in linea con i valori osservati nell'analisi embedding-based. Quindi, strutture quasi-clique coesistono con strutture più sparse.
@@ -252,9 +257,9 @@ La big community clique, ha un CC = 0.903. L'accoppiamento density-CC alto indic
 
 Precedentemente (embedding-based method) si era ossevato, un pattern di dicaccoppiamento tra density e CC in cui si aveva la presenza di community sparse ma localmente connesse. Nel contesto del Jaccard method, questo non accade. Nei range 50-100 e size>100 la maggiornanza delle community (ad eccezzione della community_188) presenta un accoppiamento tra i due valori. Si può concludere che nella rete Jaccard, farmaci con un profilo di target genici molto simile tendono a formare community in cui sia la densità globale che la connettività locale sono elevate mentre l'embedding genera strutture composte da zone più dense separate da ponti più deboli all'interno della stessa community.
 
-GRAFICO SIZE-DENSITY
+GRAFICO CC SCATTER
 
-ISTOGRAMMA DENSITY E CLUSTERING MEDIO
+
 
 ## Considerazioni finali
 Strutturalmente la jaccard similarity produce community compatte in cui density e CC hanno valori molto vicini fra loro. Al contrario la rete embedding-based genera strutture più eterogenee (globalmente sparse ma localmente coese) caratterizzate dal disaccoppiamento tra density e CC osservato nei range medio-grandi.
@@ -262,6 +267,8 @@ Strutturalmente la jaccard similarity produce community compatte in cui density 
 Biologicamente parlando, l'embedding-based meethod, lavorando nello spazio delle rappresentazioni vettoriali cattura similarità più latenti e sfumate permettendo di raggruppare farmaci che non condividono necessariamente gli stessi target ma che occupano posizioni analoghe nel grafo bipartito. Questo può essere interpretato come una maggiore capacità di indiivduare analogie indirette. Al contratio, il jaccard method opera direttamente sul profilo genico dei farmaci producendo una similarità di tipo binario la quale può non cogliere sfumature che l'embedding method riescie invece a trovre. In questo contesto l'embedding method potrebbe essere biologicamente più informativo meritando un'analisi più approfondita.
 
 Entrambi i metodi sono soggetti alla natura del dataset che aggrega dati da contesti sperimentali diversi senza distinguere le condizioni di acquisizione. Anche se, il metodo jaccard potrebbe essere più sensibile a questo fattore producendo più comunità clique.
+
+## Betweenness, Closeness and PageRank
 
 
 

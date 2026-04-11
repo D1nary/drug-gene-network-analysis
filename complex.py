@@ -45,6 +45,7 @@ from visualizzation import (
     visualize_community_dag,
 )
 from measurament import compute_community_measuraments
+from measurement import compute_cbp_measurements
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -613,7 +614,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-similarity-visualization",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Create similarity network visualization from results/similarity outputs. "
             "Default: enabled (use --no-run-similarity-visualization to skip)."
@@ -627,6 +628,16 @@ def parse_args() -> argparse.Namespace:
             "Compute and save per-community measurament metrics from "
             "results/similarity/node_metrics.csv and edge_list.csv. "
             "Default: enabled (use --no-run-measurament to skip)."
+        ),
+    )
+    parser.add_argument(
+        "--cbp",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Compute Betweenness Centrality, Closeness Centrality and PageRank "
+            "from data_for_cbp/edge_list.csv and save results to cbp_measurement/. "
+            "Default: enabled (use --no-cbp to skip)."
         ),
     )
     return parser.parse_args()
@@ -922,6 +933,29 @@ def main() -> None:
     else:
         print("Skipping measurament step (--no-run-measurament set).")
 
+    if args.cbp:
+        cbp_input = PROJECT_ROOT / "data_for_cbp" / "edge_list.csv"
+        cbp_output = RESULTS_DIR / "cbp_measurement"
+
+        if not cbp_input.exists():
+            raise FileNotFoundError(
+                "CBP step enabled but edge list was not found at "
+                f"{cbp_input}. Provide the file or disable with --no-cbp."
+            )
+
+        cbp_results = compute_cbp_measurements(
+            edge_list_path=cbp_input,
+            output_dir=cbp_output,
+        )
+        print(
+            "CBP measurements saved to",
+            cbp_output,
+            f"(betweenness: {len(cbp_results['betweenness_centrality'])} nodes,"
+            f" closeness: {len(cbp_results['closeness_centrality'])} nodes,"
+            f" pagerank: {len(cbp_results['pagerank'])} nodes)",
+        )
+    else:
+        print("Skipping CBP measurements (--no-cbp set).")
 
 
 if __name__ == "__main__":
