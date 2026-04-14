@@ -269,7 +269,304 @@ Biologicamente parlando, l'embedding-based meethod, lavorando nello spazio delle
 Entrambi i metodi sono soggetti alla natura del dataset che aggrega dati da contesti sperimentali diversi senza distinguere le condizioni di acquisizione. Anche se, il metodo jaccard potrebbe essere più sensibile a questo fattore producendo più comunità clique.
 
 ## Betweenness, Closeness and PageRank
+Per caratterizzare il ruolo dei singoli farmaci all'interno della rete, sono stati calcolati tre parametri: PageRank, closeness e betweenness a partire dalla rete di similarità embedding-based.
+
+Di seguito un'anticipazione dei valori ottenuti dall'analisi:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Mean} & \textbf{Median} \\
+\midrule
+PageRank               & $5.72 \times 10^{-4}$ & $5.82 \times 10^{-4}$ \\
+Closeness centrality   & $1.741 \times 10^{-1}$ & $1.907 \times 10^{-1}$ \\
+Betweenness centrality & $1.805 \times 10^{-3}$ & $1.31 \times 10^{-4}$ \\
+\bottomrule
+\end{tabular}
+\caption{Mean and median values of centrality metrics computed on the drug--drug similarity network.}
+\label{tab:centrality_summary}
+\end{table}
+
+### pagerank
+Con il pagerank, si vuole analizzare la centralità di ciascun farmaco all'interno della drug-drug similarity network. Un pagerank alto indica un farmaco con profilo di interazione genica "hub" condiviso da molti altri. Questo lo potrebbe rendere un potenziale candidato per il drug repurposing.
+
+Di seguito è riportato un istogramma rappresentante la distribuzione dei valori di pagerank. 
+
+HISTOGRAMMA PAGERANK
+
+La distribuzione è quasi gaussiana (con valore medio $\bar{PR} = 5.7 \times 10^{-4} \pm 1.96 \times 10^{-4}$) il che indica che la rete è abbastanza omogena in termini di popolarità di profilo genico con pochi farmaci che spiccano in maniera netta rispetto agli altri. In altre parole, ci sono pochi farmaci con un profilo genico altamente condiviso da altri (profilo genico "hub"). I tre farmaci con il più alto valore di pagerank sono:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{clr}
+\toprule
+\textbf{\#} & \textbf{Drug} & \textbf{PageRank} \\
+\midrule
+1 & Drug\_2451      & 0.001116 \\
+2 & Drug\_100054454 & 0.001048 \\
+3 & Drug\_151508717 & 0.001032 \\
+\bottomrule
+\end{tabular}
+\caption{Top 3 drugs by PageRank score.}
+\label{tab:top3_pagerank}
+\end{table}
 
 
 
+---
+PageRank assegna a ogni nodo un punteggio scalare che riflette la sua importanza strutturale nella rete 
+Nel tuo progetto hai una drug-drug similarity network costruita così:
 
+- Nodi: farmaci (proiettati dal grafo bipartito ChG)
+- Archi: cosine similarity ≥ 0.4 tra i vettori embedding (MP2Vec-pq o Metapath2Vec++)
+- Pesi degli archi: il valore della cosine similarity stessa
+
+In questo contesto PageRank calcola, per ciascun farmaco, quanto è "centrale" nella struttura di similarità globale, ovvero: Un farmaco ha PageRank alto se è simile a molti altri farmaci che a loro volta sono simili a molti farmaci importanti
+
+- Pagerank alto: Farmaco con profilo di interazione genica "hub", condiviso da molti altri ---> Potenziale candidato per drug repurposing (molte relazioni di similarità)
+- Pagerank basso: Farmaco con profilo genico periferico o molto specifico ---> Farmaco di nicchia o con target biologico unico
+
+HISTOGRAMMA PAGERANK
+L'istogramma mostra quanti farmaci hanno un valore di PageRank che cade in ciascun intervallo. Sull'asse orizzontale ci sono i possibili valori di PageRank (espressi in millesimi), sull'asse verticale il numero di farmaci con quel valore.
+In sostanza risponde alla domanda: "quanti farmaci hanno un PageRank basso, quanti medio, quanti alto?"
+
+Nel nostro caso la forma a campana indica che la maggior parte dei farmaci si addensa attorno ai valori centrali — né troppo bassi né troppo alti — con pochissimi nodi agli estremi. È proprio questa forma che ci aveva permesso di concludere che la rete è omogenea, senza farmaci particolarmente dominanti. Ci sono pochi farmaci con pagerank alto ovvero con un profilo dominante. 
+---
+
+
+### Closeness Centrality
+Per analizzare quanto un farmaco sia ben posizionato topologicamente all'interno della similarity network si è deciso di calcolare la Closeness Centrality (CC). Un farmaco con CC bassa è strutturalmente lontano dalla maggiorparte della rete, rappresentando un nodo isolato o in un cluster di nicchia. Al contrario un farmaco con CC alta è mediamente separato da pochi passi di similarità da tutto il resto della rete, ovvero un nodo centrale accessibile da molti altri.
+
+La distribuzione della Closeness centrality è la seguente. 
+
+HISTOGRAMMA CLOSENESS CENTRALITY
+
+La distribuzione ha una skewness più marcata con una coda a sinistra la quale indica che la maggiorparte dei farmaci è ben posizionata nella rete mentre un sottoinsieme più piccolo di nodi è più periferico. Il valore medio è $\bar{C} = 0.174, \quad \sigma = 0.074$.
+
+I tre nodi con closeness più alta sono:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{clr}
+\toprule
+\textbf{\#} & \textbf{Drug} & \textbf{Closeness} \\
+\midrule
+1 & Drug\_100001978 & 0.2726 \\
+2 & Drug\_9880      & 0.2721 \\
+3 & Drug\_28864     & 0.2716 \\
+\bottomrule
+\end{tabular}
+\caption{Top 3 drugs by closeness centrality.}
+\label{tab:top3_closeness}
+\end{table}
+
+Da notare che molti nodi all'infurori della top 3 per CC hanno valori molto vicini a quello massimo. Questo fatto è confermato anche dalla distribuzione sopra mostrata indicando la presenza di molti nodi ben topologicamente posizionati all'interno della rete. 
+
+
+---
+Mentre PageRank chiede "chi è importante perché è vicino a nodi importanti?", la closeness chiede:
+
+"Da questo farmaco, quanto velocemente posso raggiungere tutti gli altri tramite relazioni di similarità?"
+
+Un farmaco con closeness alta è mediamente vicino a tutti gli altri nella rete: pochi "salti" di similarità lo separano dall'intera popolazione di farmaci. Un farmaco con closeness bassa è periferico, strutturalmente lontano dalla maggior parte della rete.
+
+- Valore alto: Farmaco con profilo genico "intermedio", compatibile con molti cluster diversi --> Raggiungi l'intera rete con pochi salti di similarità
+- Valore basso: Farmaco specializzato, simile solo a un sottoinsieme ristretto --> Periferico, magari isolato in un cluster di nicchia
+
+L'interpretazione biologica è sottile: un farmaco con closeness alta non è necessariamente simile a tutti gli altri (quello lo direbbe il degree), ma è ben posizionato topologicamente — fa da intermediario potenziale tra gruppi di farmaci con profili genici diversi.
+
+Differenza chiave
+Closeness → posizione globale
+(quanto sei vicino a tutti)
+Betweenness → ruolo strutturale
+(quanto sei importante come passaggio)
+
+
+---
+### Betweenness Centrality
+La Betweenness Centrality (BC) è stata calcolata per verificare il ruolo strutturale dei nodi all'interno della similarity network. In particolare, la misura consente di verificare quali farmaci fungono da ponte tra altri farmaci o tra cluster di farmaci. Infatti, un farmaco con elevata betweenness centrality (BC) tende a connettere nodi o gruppi di nodi caratterizzati da profili genici differenti.
+
+---
+Cosa misura concretamente
+"Quanto spesso questo farmaco si trova sul percorso più breve tra due altri farmaci?"
+
+Un nodo con betweenness alta è un ponte strutturale: rimuoverlo frammenterebbe o allungherebbe significativamente i percorsi nella rete. Non deve avere necessariamente molti vicini — può anche avere degree basso, ma essere l'unico collegamento tra due zone della rete.
+
+- Valore alto: Farmaco che connette cluster con profili genici diversi --> Potenziale candidato per drug repurposing cross-indicazione
+- Valore Basso: Farmaco interno a un singolo cluster omogeneo --> Farmaco altamente specifico per un'unica classe terapeutica
+
+Un farmaco con betweenness alta è simile a gruppi di farmaci che tra loro non sono simili — ha un profilo genico "trasversale" che fa da tramite tra domini biologici distinti. Questo è esattamente il tipo di farmaco interessante per ipotesi di repurposing.
+
+Differenza chiave
+Closeness → posizione globale
+(quanto sei vicino a tutti)
+Betweenness → ruolo strutturale
+(quanto sei importante come passaggio)
+---
+
+
+La distribuzione che si osserva è la seguente, con valore medio di $\bar{B} = (1.805 \pm 5.281) \times 10^{-3}$
+
+HISTOGRAMMA BETWEENESS
+
+Si nota che la distribuzione è fortemente asimmetrica con coda a destra. Inoltre, il $28\%$ dei nodi ha betweeness uguale a 0 ovvero 489 farmaci non giacciono su alcun shortest path tra altri nodi,  il $72\%$ ha $BC < 0.001$, e solo 13 nodi hanno $BC > 0.04$. Quello che si evince è che pochi farmaci fungono da ponti tra farmaci con diversi profili di similarità. Di seguito i top 3 drug per betweeness:
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{clr}
+\toprule
+\textbf{\#} & \textbf{Drug} & \textbf{Betweenness} \\
+\midrule
+1 & Drug\_9880       & 0.06804 \\
+2 & Drug\_100002914  & 0.06487 \\
+3 & Drug\_2763       & 0.06297 \\
+\bottomrule
+\end{tabular}
+\caption{Top 3 drugs by betweenness centrality.}
+\label{tab:top3_betweenness}
+\end{table}s
+
+
+---
+DOMANDA
+Nel mio contesto, se la CC analizza la vicinanza topologica ad altri nodi della rete e la BC analizza quanto i nodi sono in grado di colleggare altri nodi, stanno misurando sostanzialmente la stessa cosa?
+
+🔴 Differenza concettuale forte (nel tuo caso)
+🔹 Closeness Centrality (CC)
+
+Risponde a:
+
+“Quanto questo farmaco è globalmente vicino a tutti gli altri?”
+
+Dipende dalla distanza media nella rete
+È una proprietà globale e diffusa
+Non richiede di stare su percorsi “critici”
+
+👉 Nel tuo contesto:
+
+Farmaci con CC alta =
+ben immersi nella rete di similarità
+Tipicamente stanno in regioni dense e ben connesse
+🔹 Betweenness Centrality (BC)
+
+Risponde a:
+
+“Quanto questo farmaco è necessario per collegare altri farmaci?”
+
+Dipende dai cammini minimi
+È una proprietà strutturale e selettiva
+Identifica colli di bottiglia / ponti
+
+👉 Nel tuo contesto:
+
+Farmaci con BC alta =
+connettono cluster diversi di profili genici
+Anche pochi nodi possono avere valori molto alti (come osservi)
+⚖️ Perché NON sono la stessa cosa
+1. Puoi avere CC alta ma BC bassa
+
+➡️ Nodo centrale dentro un cluster denso
+
+È vicino a tutti (alta CC)
+Ma non è necessario per collegare altri nodi (bassa BC)
+
+👉 Interpretazione biologica:
+
+Farmaco “tipico” di un grande gruppo
+Non particolarmente interessante per bridging tra meccanismi diversi
+2. Puoi avere BC alta ma CC non altissima
+
+➡️ Nodo ponte tra cluster
+
+Non è vicinissimo a tutti (CC moderata)
+Ma è cruciale per collegare regioni diverse (BC alta)
+
+👉 Questo è il caso più interessante per te:
+
+Farmaco con profilo genico trasversale
+Forte candidato per drug repurposing cross-cluster
+🔬 Collegamento diretto ai tuoi risultati
+
+I tuoi dati confermano perfettamente la differenza:
+
+✔ Closeness
+Distribuzione abbastanza concentrata
+Molti nodi con valori simili
+➡️ rete ben connessa globalmente
+✔ Betweenness
+Distribuzione molto skewed
+28% = 0
+pochi nodi molto alti
+➡️ pochi veri “ponti strutturali”
+
+👉 Questo è un risultato molto informativo:
+
+La rete è globalmente accessibile (alta CC diffusa)
+Ma la comunicazione tra cluster passa da pochi nodi chiave (BC)
+
+---
+
+## Relazione CC - BB
+
+Analizzando le relazioni tra CC e BC è possibile determinare il ruolo di ciascun farmaco all'interno della rete. I ruoli vengono definiti in base alla combinazione di valori alti o bassi di CC e BC, dove la soglia discriminante è fissata al 25° e 75° percentile.
+
+Vengono identificati i seguenti ruoli:
+- Hub globali (alta CC - alta BC): Essi si trovano in posizioni "centrali" della rete e, allo stesso tempo, possiedono un ruolo strutturale importante collegando fra loro farmaci con profili genici diversi. Biologicamente possono corrispondere a farmaci con profili di interazione genica molto ampi. Infatti, non solo interagiscono con molti geni, ma quei geni appartengono a pathway funzionali distinti.
+
+- Core di cluster (alta CC - bassa BC): Farmaci ben posizionati nella rete globale, ovvero facili da raggiungere attraverso salti similarità ma che non fungono da ponte tra farmaci o comunità diverse. Probabilmente farmaci appartenenti a famiglie studiate e ben caratterizzate.
+
+- Ponti periferici (bassa cc - alta BC): Questo è il gruppo più ricco. Sono farmaci ai margini della rete (bassa CC) ma indispensabili per l'interconnesione della rete stessa. Come detto prima, sono farmaci che fanno da ponte tra famiglie o farmaci con diverso profilo genico.  Biologimanete parlando, sono molecole con meccanismi d'azione misti, che probabilmetne interferiscono con pathway biologici trasversali.
+
+- Farmaci perifierici (bassa CC e bassa BC): Farmaci alla perifieria della rete che non fungono neanche da ponte tra farmaci i cluster diversi. Possono corrispondere a farmaci altamente selettivi, poco caratterizzati o poco studiati all'interno del dataset
+
+- Nodi misti (al di fuori dei 4 quadranti): Questi farmaci non sono né centrali né periferici in modo netto. Hanno una closeness nella fascia 0.138–0.231 e una betweenness nella facia 0–0.0011. Non fungono da ponti fondamentali per farmaci diversi (bassa BC) ma non sono isolati (CC non trascurabile).
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llrr}
+\toprule
+\textbf{Quadrant} & \textbf{Description} & \textbf{N} & \textbf{\%} \\
+\midrule
+High CC + High BC & Global hubs         & 121  & 6.9\%  \\
+High CC + Low BC  & Cluster cores       & 9    & 0.5\%  \\
+Low CC + High BC  & Peripheral bridges  & 40   & 2.3\%  \\
+Low CC + Low BC   & Isolated peripherals & 302 & 17.3\% \\
+Intermediate zone & (outside extreme quartiles) & 1276 & 73.0\% \\
+\bottomrule
+\end{tabular}
+\caption{Distribution of drug nodes across centrality quadrants defined by closeness centrality (CC) and betweenness centrality (BC).}
+\label{tab:centrality_quadrants}
+\end{table}
+
+---
+I dati della similarity network, sono coerenti con il risultato ottenuto? ovvero che i nodi a bassa CC e bassa BC sono il gruppo di dimensione maggiore?
+
+La domanda sulla coerenza con i parametri di rete è molto pertinente — e la risposta è sì, i dati sono coerenti in modo preciso.
+
+Modularity 0.43 e pochissimi bridge
+Una modularity di 0.43 indica comunità ben separate, con pochi legami inter-cluster. Questo spiega direttamente perché i bridge periferici siano solo 40: in una rete ad alta modularità i nodi che "attraversano" le comunità sono strutturalmente rari e preziosi. Se la modularity fosse 0.2, ti aspetteresti molti più bridge.
+
+87 componenti e 302 periferici puri
+La rete ha 87 componenti connesse di cui solo una gigante (1565 nodi su 1774). I restanti 209 nodi sono in componenti isolate o piccole. Questo spiega gran parte del gruppo LL: nodi disconnessi dal nucleo principale hanno per definizione CC bassissima e BC zero. Non è quindi un risultato biologico ma strutturale — sono farmaci con profili di embedding così distanti da tutti gli altri da non superare la soglia cosine 0.60.
+
+Clustering medio 0.53 e quasi assenza di core di cluster puri (HL = 9)
+Un clustering così alto significa che i vicini di un nodo tendono già ad essere connessi tra loro. In una tale struttura, un nodo con alta CC non riesce ad avere BC bassa perché i suoi shortest path vengono ridistribuiti su molti percorsi alternativi — non esiste un nodo che sia "al centro" senza che i suoi vicini si "scavalchino" a vicenda. Questo è esattamente perché HL è quasi vuoto: alta CC e BC nulla coesistono solo in reti con cluster molto isolati e densi, che qui la modularity moderata non permette completamente.
+
+Diameter 17 e avg_path_length ~4.9
+Il diametro elevato (17) rispetto al path length medio (4.9) indica una distribuzione asimmetrica dei cammini: la maggior parte delle coppie di nodi è relativamente vicina, ma esiste una coda lunga di percorsi che attraversano la rete da periferia a periferia. Questa struttura è coerente con i bridge periferici: sono proprio i nodi che, pur stando ai margini, accorciano quei percorsi lunghi tra cluster distanti — toglierli aumenterebbe il diametro in modo sproporzionato.
+
+In sintesi, i parametri di rete non solo sono coerenti con la distribuzione dei quadranti, ma la spiegano meccanicisticamente. Il quadro che emerge è quello di una rete con comunità ben formate, bordi netti, e un nucleo connesso ma non dominante — esattamente il tipo di struttura in cui i bridge periferici sono rari, critici, e biologicamente i più interessanti da investigare.
+
+SCATTER PLOT bc - cc
+
+
+
+Scatter plot of closeness (CC) versus betweenness centrality (BC) for \(n = 1{,}748\) drug nodes in the embedding-based similarity network. The $y$-axis uses a $\log_{10}$ scale. Dashed lines mark the 25th/75th percentile thresholds of CC and the 75th percentile of BC
+
+\caption{Distribution of PageRank scores across the 1{,}748 drug nodes in the embedding-based similarity network.}
+
+\caption{Distribution of closeness centrality across the 1{,}748 drug nodes in the embedding-based similarity network.}
+
+\caption{Distribution of betweenness centrality across the 1{,}748 drug nodes in the embedding-based similarity network.}

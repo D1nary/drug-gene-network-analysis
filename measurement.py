@@ -84,9 +84,16 @@ def compute_pagerank(
     return df
 
 
+def _extract_giant_component(graph: nx.Graph) -> nx.Graph:
+    """Return the largest connected component of *graph* as a subgraph view."""
+    largest_cc = max(nx.connected_components(graph), key=len)
+    return graph.subgraph(largest_cc).copy()
+
+
 def compute_cbp_measurements(
     edge_list_path: Path = DEFAULT_EDGE_LIST,
     output_dir: Path = DEFAULT_CBP_OUTPUT_DIR,
+    giant_component_only: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """Compute Betweenness Centrality, Closeness Centrality and PageRank.
 
@@ -95,6 +102,9 @@ def compute_cbp_measurements(
       - betweenness_centrality.csv
       - closeness_centrality.csv
       - pagerank.csv
+
+    If *giant_component_only* is True (default), metrics are computed only on
+    the largest connected component of the graph.
 
     Returns a dict mapping metric name to the corresponding DataFrame.
     """
@@ -105,6 +115,13 @@ def compute_cbp_measurements(
     _validate_columns(edge_df, REQUIRED_EDGE_COLUMNS, edge_list_path)
 
     graph = _build_graph(edge_df)
+
+    if giant_component_only:
+        graph = _extract_giant_component(graph)
+        print(
+            f"Giant component: {graph.number_of_nodes()} nodes, "
+            f"{graph.number_of_edges()} edges"
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

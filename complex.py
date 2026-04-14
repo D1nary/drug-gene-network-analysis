@@ -636,8 +636,17 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help=(
             "Compute Betweenness Centrality, Closeness Centrality and PageRank "
-            "from data_for_cbp/edge_list.csv and save results to cbp_measurement/. "
+            "from data_for_cbp/edge_list.csv and save results to results/cbp_measurement/. "
             "Default: enabled (use --no-cbp to skip)."
+        ),
+    )
+    parser.add_argument(
+        "--cbp-giant-component",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Restrict CBP metrics to the giant component of the similarity graph. "
+            "Default: enabled (use --no-cbp-giant-component to compute on the full graph)."
         ),
     )
     return parser.parse_args()
@@ -946,6 +955,7 @@ def main() -> None:
         cbp_results = compute_cbp_measurements(
             edge_list_path=cbp_input,
             output_dir=cbp_output,
+            giant_component_only=args.cbp_giant_component,
         )
         print(
             "CBP measurements saved to",
