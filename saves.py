@@ -94,6 +94,8 @@ def save_similarity_global_parameters(
         else nx.Graph()
     )
 
+    # Diameter and average path length are only defined on connected graphs;
+    # restrict to the giant component to avoid errors on disconnected networks.
     if giant_component_size > 1:
         diameter = int(nx.diameter(giant_component))
         avg_path_length = float(nx.average_shortest_path_length(giant_component))
@@ -493,7 +495,8 @@ def compute_cooccurrence_parameters(
     weight_eq_1 = 0
     weight_eq_2 = 0
     weight_ge_k = 0
-    # Bucket edge weights to quantify how many links are weak vs recurrent.
+    # Bucket edge weights to quantify how many links are weak (=1, seen by a single drug)
+    # vs moderately recurrent (=2) vs strongly recurrent (>=threshold).
     for weight in weights:
         weight_int = int(round(weight))
         if weight_int == 1:
@@ -797,7 +800,7 @@ def save_community_members_by_density(
     )
 
     community_members: dict[str, list[str]] = {}
-    # Keep only dense and sufficiently large communities.
+    # Keep only dense and sufficiently large communities to focus on well-formed clusters.
     for node, attrs in community_graph.nodes(data=True):
         size = int(attrs.get("size", 0))
         internal_edge_count = int(attrs.get("internal_edge_count", 0))
@@ -811,6 +814,7 @@ def save_community_members_by_density(
 
     with output_path.open("w", encoding="utf-8", newline="") as fh:
         # Write one column per community and one row per member rank.
+        # Shorter columns are padded with empty strings to maintain rectangular CSV shape.
         fieldnames = list(community_members.keys())
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
@@ -983,7 +987,8 @@ def compute_dag_global_parameters(graph: nx.DiGraph) -> dict[str, float | int]:
     n_sources = sum(1 for degree in in_degrees.values() if degree == 0)
     n_sinks = sum(1 for degree in out_degrees.values() if degree == 0)
 
-    # Estimate hierarchy depth via longest directed path in the acyclic graph.
+    # Estimate hierarchy depth via the longest directed path in the acyclic graph.
+    # Guarded attribute lookup handles API differences across NetworkX versions.
     if n_nodes == 0 or n_edges == 0:
         max_depth = 0
     else:
@@ -1024,7 +1029,8 @@ def compute_dag_node_parameters(graph: nx.DiGraph) -> pd.DataFrame:
 
     levels: dict[object, int] = {}
     try:
-        # Assign level as the longest predecessor chain ending at each node.
+        # Assign topological level as the length of the longest predecessor chain
+        # ending at each node; roots (no predecessors) get level 0.
         for node in nx.topological_sort(graph):
             preds = list(graph.predecessors(node))
             if not preds:
@@ -1038,6 +1044,7 @@ def compute_dag_node_parameters(graph: nx.DiGraph) -> pd.DataFrame:
     for node in graph.nodes():
         in_degree = int(graph.in_degree(node))
         out_degree = int(graph.out_degree(node))
+        # Degree ratio: high values indicate nodes with many children (supersets in DAG).
         degree_ratio = float(out_degree / (in_degree + 1))
         records.append(
             {

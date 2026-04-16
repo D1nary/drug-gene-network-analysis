@@ -44,8 +44,7 @@ from visualizzation import (
     visualize_similarity_subgraph,
     visualize_community_dag,
 )
-from measurament import compute_community_measuraments
-from measurement import compute_cbp_measurements
+from measurement import compute_cbp_measurements, compute_community_measurements
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -182,6 +181,7 @@ def print_graph_sample(graph: nx.Graph) -> None:
 def _parse_target_list(value: object) -> list[int] | None:
     # Normalize heterogeneous CSV representations (JSON-like strings, Python lists, NaN)
     # into a clean Python list so target sets can be safely built for DAG generation.
+    # Tries JSON first (faster), then falls back to ast.literal_eval for Python-style lists.
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None
     if isinstance(value, list):
@@ -621,13 +621,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--run-measurament",
+        "--run-measurement",
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Compute and save per-community measurament metrics from "
+            "Compute and save per-community measurement metrics from "
             "results/similarity/node_metrics.csv and edge_list.csv. "
-            "Default: enabled (use --no-run-measurament to skip)."
+            "Default: enabled (use --no-run-measurement to skip)."
         ),
     )
     parser.add_argument(
@@ -684,6 +684,8 @@ def main() -> None:
         f"{bipartite_snapshot.number_of_nodes()} nodes,",
         f"{bipartite_snapshot.number_of_edges()} edges",
     )
+    # Resolve output path and load only the hyperparameter set required by the
+    # selected algorithm; irrelevant configs remain None to avoid accidental use.
     embedding_algorithm = args.embedding_algorithm
     if embedding_algorithm == "node2vec":
         embedding_output_path = EMBEDDING_DIR / "node2vec_embeddings.csv"
@@ -910,37 +912,41 @@ def main() -> None:
             "(--no-run-similarity-visualization set)."
         )
 
-    if args.run_measurament:
+    if args.run_measurement:
         node_metrics_path = RESULTS_DIR / "similarity" / "node_metrics.csv"
         edge_list_path = RESULTS_DIR / "similarity" / "edge_list.csv"
-        measurament_output_path = (
-            RESULTS_DIR / "similarity" / "community_measurament.csv"
+        measurement_output_path = (
+            RESULTS_DIR / "similarity" / "community_measurement.csv"
         )
 
         if not node_metrics_path.exists():
             raise FileNotFoundError(
-                "Measurament step enabled but node metrics file was not found at "
+                "Measurement step enabled but node metrics file was not found at "
                 f"{node_metrics_path}."
             )
         if not edge_list_path.exists():
             raise FileNotFoundError(
-                "Measurament step enabled but edge list file was not found at "
+                "Measurement step enabled but edge list file was not found at "
                 f"{edge_list_path}."
             )
 
-        measurament_df = compute_community_measuraments(
+        measurement_df = compute_community_measurements(
             node_metrics_path=node_metrics_path,
             edge_list_path=edge_list_path,
         )
-        measurament_output_path.parent.mkdir(parents=True, exist_ok=True)
-        measurament_df.to_csv(measurament_output_path, index=False)
+        measurement_output_path.parent.mkdir(parents=True, exist_ok=True)
+        measurement_df.to_csv(measurement_output_path, index=False)
         print(
-            "Community measurament metrics saved to",
-            measurament_output_path,
-            f"({len(measurament_df)} communities)",
+            "Community measurement metrics saved to",
+            measurement_output_path,
+            f"({len(measurement_df)} communities)",
         )
     else:
-        print("Skipping measurament step (--no-run-measurament set).")
+        print(
+            "Skipping measurement step (--no-run-measurement set). "
+            "Per-community metrics (density, size, clustering coefficient, weighted degree) "
+            "will NOT be computed. Use --run-measurement to enable."
+        )
 
     if args.cbp:
         cbp_input = PROJECT_ROOT / "data_for_cbp" / "edge_list.csv"
@@ -962,7 +968,8 @@ def main() -> None:
             cbp_output,
             f"(betweenness: {len(cbp_results['betweenness_centrality'])} nodes,"
             f" closeness: {len(cbp_results['closeness_centrality'])} nodes,"
-            f" pagerank: {len(cbp_results['pagerank'])} nodes)",
+            f" pagerank: {len(cbp_results['pagerank'])} nodes,"
+            f" degree: {len(cbp_results['degree'])} nodes)",
         )
     else:
         print("Skipping CBP measurements (--no-cbp set).")

@@ -206,7 +206,8 @@ def visualize_random_drug_target_subgraph(
     desired_spacing = 5.0 / math.sqrt(node_count)
     pos = nx.spring_layout(subgraph, seed=42, k=desired_spacing, iterations=300)
 
-    # Redistribute gene nodes around their connected drug to avoid overlap
+    # Redistribute gene nodes in a ring around their connected drug to reduce overlap.
+    # Each gene is placed on the circumference of a small circle centred on the drug.
     gene_radius = 0.09
     placed_genes: set = set()
 
@@ -223,6 +224,7 @@ def visualize_random_drug_target_subgraph(
         for idx, gene in enumerate(neighbors):
             if gene in placed_genes:
                 continue
+            # Evenly distribute genes around the full circle (2π radians).
             angle = 2 * math.pi * idx / count
             offset_x = gene_radius * math.cos(angle)
             offset_y = gene_radius * math.sin(angle)
@@ -442,6 +444,7 @@ def visualize_similarity_subgraph(
         ax=ax,
     )
     legend_handles = None
+    # Fall back to community_id column in node_metrics.csv when no explicit mapping given.
     if community_membership is None and "community_id" in node_df.columns:
         community_membership = {
             str(row.drug_id): str(row.community_id)
@@ -450,6 +453,8 @@ def visualize_similarity_subgraph(
 
     if community_membership:
         # Color by community assignment and optionally build a compact legend.
+        # Communities are sorted by node count so the most populated get the first
+        # (most visually distinct) colors from the tab20 colormap.
         community_counts = Counter(
             community_membership.get(node, "Unassigned") for node in subgraph.nodes()
         )
@@ -717,7 +722,7 @@ def visualize_community_dag(
     levels: dict[object, int] = {}
     is_dag = nx.is_directed_acyclic_graph(dag)
     if is_dag:
-        # Place nodes by topological level to emphasize hierarchy depth.
+        # Assign each node to a topological level (distance from root in the DAG).
         for node in nx.topological_sort(dag):
             preds = list(dag.predecessors(node))
             levels[node] = 0 if not preds else 1 + max(levels[p] for p in preds)
@@ -727,7 +732,8 @@ def visualize_community_dag(
 
         pos: dict[object, tuple[float, float]] = {}
         for level, nodes in sorted(groups.items()):
-            # Spread nodes horizontally inside each level band.
+            # Spread nodes horizontally inside each level band and push deeper
+            # levels downward on the y-axis to reveal hierarchy visually.
             nodes_sorted = sorted(nodes, key=lambda value: str(value))
             width = max(1, len(nodes_sorted) - 1)
             for idx, node in enumerate(nodes_sorted):

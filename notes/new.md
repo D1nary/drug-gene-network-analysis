@@ -1,14 +1,11 @@
-# Schedule
-SIMILARITY NETWORK:
-Descrizione metodi +
-	filtraggio
-	densità
-COMMIUNITY:
-General parameters:
-	Modularity
-	size analysis
-	
-Analysis by community.
+# Objective
+L'obiettivo principale del lavoro è caratterizzare la struttura topologica della rete costrita dal dataset ChG-InterDecagon e dare una prima descrizione del ruolo dei farmcaci al suo interno.
+
+Come prima cosa venogono costruite due reti di similarità drug-drug con due apporcci differenti. Il primo è un metodo basato sull'embedding che utilizza l'algoritmo metapath2vec++ mentre il secondo è un metodo basato sulla similarità Jaccard. Entrambe le similarity network sono confrontate in termini di valori strutturali e nel modo in cui entrambe creano e organizzano comunità di farmaci. 
+
+L'individuazione delle comunità avviene tramite il Louvian method. Successivamente le singole comunità vengono analizzate in termini di parametri intra-comunità come size, densità e clustering coefficient. 
+
+Infine, il ruolo dei singoli farmaci viene analizzato attraverso i parametri di PageRank, closeness centrality, and betweenness centrality con l'obiettivo di identificare farmaci potenzialmte interessanti dal punto di vista farmacolocico.
 
 # Similarity network
 La similarity network è stata costruita utilizzando sia un approccio embedding-based e sia tramite la Jaccard similarity con l'obiettivo di confrontarne analogie e differenze.
@@ -268,25 +265,33 @@ Biologicamente parlando, l'embedding-based meethod, lavorando nello spazio delle
 
 Entrambi i metodi sono soggetti alla natura del dataset che aggrega dati da contesti sperimentali diversi senza distinguere le condizioni di acquisizione. Anche se, il metodo jaccard potrebbe essere più sensibile a questo fattore producendo più comunità clique.
 
-## Betweenness, Closeness and PageRank
+## Node Centrality Measures
 Per caratterizzare il ruolo dei singoli farmaci all'interno della rete, sono stati calcolati tre parametri: PageRank, closeness e betweenness a partire dalla rete di similarità embedding-based.
 
-Di seguito un'anticipazione dei valori ottenuti dall'analisi:
+Below, there are the values obtained for all the parameters:
 
 \begin{table}[H]
 \centering
 \begin{tabular}{lrr}
 \toprule
-\textbf{Metric} & \textbf{Mean} & \textbf{Median} \\
+\textbf{Metric} & \textbf{Mean $\pm$ Std} & \textbf{Median $\pm$ Std} \\
 \midrule
-PageRank               & $5.72 \times 10^{-4}$ & $5.82 \times 10^{-4}$ \\
-Closeness centrality   & $1.741 \times 10^{-1}$ & $1.907 \times 10^{-1}$ \\
-Betweenness centrality & $1.805 \times 10^{-3}$ & $1.31 \times 10^{-4}$ \\
+Degree (weighted)      & $6.31 \times 10^{1} \pm 8.61 \times 10^{1}$  & $1.83 \times 10^{1} \pm 8.55 \times 10^{-1}$ \\
+PageRank               & $5.72 \times 10^{-4} \pm 1.96 \times 10^{-4}$ & $5.82 \times 10^{-4} \pm 5.28 \times 10^{-6}$ \\
+Closeness centrality   & $1.74 \times 10^{-1} \pm 7.39 \times 10^{-2}$ & $1.91 \times 10^{-1} \pm 2.21 \times 10^{-3}$ \\
+Betweenness centrality & $1.80 \times 10^{-3} \pm 5.28 \times 10^{-3}$ & $1.31 \times 10^{-4} \pm 1.99 \times 10^{-5}$ \\
 \bottomrule
 \end{tabular}
-\caption{Mean and median values of centrality metrics computed on the drug--drug similarity network.}
+\caption{Mean and median values (with standard deviation) of centrality metrics computed on the drug--drug similarity network.}
 \label{tab:centrality_summary}
 \end{table}
+
+## degree
+Per quanto riguarda il la weighted degree, la media è $6.31 \times 10^{1} \pm 8.61 \times 10^{1}$.
+Come si osserva, la grande maggioranza dei 1748 farmaci ha un weighted degree ridotto, il che significa che la maggior parte dei nodi condivide archi di similarità con pochi vicini e/o con similarità coseno mediamente basse. La distribuzione ha una lunga coda a destra in cui i farmcacì hanno un più alto numero di connessioni in cui troviamo un numero minore di farmaci con una connettività intermedia e con connettività elevata. All'estremo destro della distribuzione, nella fascia 250–280, si concentra un nucleo ritretto di hub ad alto weighted degree ovevro farmaci con profili di interazione genica molto ampi, la cui similarità con molti altri composti riflette o una bassa selettività di target oppure un'azione su pathway biologici centrali.
+
+
+HISOGRAMMA DEGREE
 
 ### pagerank
 Con il pagerank, si vuole analizzare la centralità di ciascun farmaco all'interno della drug-drug similarity network. Un pagerank alto indica un farmaco con profilo di interazione genica "hub" condiviso da molti altri. Questo lo potrebbe rendere un potenziale candidato per il drug repurposing.
@@ -559,11 +564,36 @@ In sintesi, i parametri di rete non solo sono coerenti con la distribuzione dei 
 
 SCATTER PLOT bc - cc
 
+## Final Consideration
+Compared to the Jaccard similarity, the cosine similarity with a threshold of 0.6 is much more permissive with respect to nodes (98.5% vs 81.2%). Furthermore, the cosine similarity is more selective with respect to edges. This may be due to the higher threshold.
+
+The higher density compared to the embedding-based network (0.05 vs 0.07) reflects less selective nature of the jaccard threshold regrading the edges.
+
+Modulatità più alta dell'embedding --> maggiore caratterizzazione 
+With the Jaccard similarity, two drugs are considered similar only if they explicitly share the same target genes. In contrast, the embeddings produced by metapath2vec++ project nodes into a space in which even indirect co-occurrences are preserved, capturing similar- ities between drugs that do not share direct targets but occupy topologically analogous positions in the network. It follows that the embedding-based network is intrinsically more informative, as it preserves a greater amount of information on the similarity and separation between drugs, thus producing a higher modularity.
+
+The proportion of intermediate-sized communities (5 ≤ size ≤ 50) is considerably higher in the Jaccard case (14.56% vs 7.69%), while the presence of very large communities is rather limited. Indeed, only one community exceeds 100 nodes (0.38%), compared to five in the embedding-based method (3.50%). In the medium and large ranges, however, the density drops while the clustering coefficient nonetheless remains ≈ 0.60. This decoupling indicates a structure composed of dense zones separated from one another by weak connections. From a biological standpoint, this could indicate the presence, within the same community, of groups of drugs that share a common set of target genes, with little sharing of target genes across different groups.
+
+The range 50–100 highlights the most substantial difference in terms of mean value and standard deviation. In this range there are 3 communities, 2 of which are similar in terms of density and one that is considerably sparser. In the range size > 100, there is only one community with size = 359 and density ≈ 1.00. This represents a structurally very different result from what was observed in the embedding-based network, where the largest communities showed density values in the range 0.57–0.68. The Jaccard similarity identifies here an enormous set of drugs with nearly identical gene profiles.
+
+Previously (embedding-based method), a decoupling pattern between density and clus- tering coefficient was observed, characterized by the presence of sparse but locally connected communities. In the context of the Jaccard method, this does not occur. In the ranges 50–100 and size > 100, the majority of communities (with the exception of com- munity_188) exhibit a coupling between the two values. It can be concluded that in the Jaccard network, drugs with a very similar gene target profile tend to form communities in which both the global density and the local connectivity are high, whereas the embed- ding generates structures composed of denser zones separated by weaker bridges within the same community.
 
 
 
 
 
+The two similarity networks examined in this report reveal substantially different structural properties, reflecting the distinct nature of the similarity measures.
+
+The cosine similarity network with a threshold of 0.6 is more permissive in term of nodes compared to the Jaccard-based network. At the same time, the cosine similarity proves more selective with respect to edges with a lower density (0.07 vs. 0.05). 
+
+The embedding-based network achieves a higher modularity, indicating a greater degree of community characterisation. This result can be explained by the intrinsic properties of the two methods. Jaccard similarity, compares only the gene profiles of the drugs whereas the embeddings produced by metapath2vec++ project nodes into a space in which even indirect co-occurrences are preserved. This allows the embedding-based approach to capture similarities between drugs that do not share direct targets but occupy topologically analogous positions in the network. As a consequence, the embedding-based network is intrinsically more informative. 
+
+La distribuzione delle size delle community è globalmetnte la stessa con un numero altro di community di piccole dimensioni e poche di grandi dimensioni. Analizzando più approfonditametne si nota che questa distribuzione non è uguale in tutti i sui aspetti. The proportion of intermediate-sized communities (5 ≤ size ≤ 50) is notably higher for the jaccard method (14.56% vs. 7.69%), while the presence of very large communities is more limited. In fact, only one community exceeds 100 nodes (0.38%), compared to five in the embedding-based network (3.50%).
+
+Analizzando i parametri intra-community si nota una diversa costruzione delle community tra i due approcci. A range intermedi e elevati, per l'embedding method, si nota un decaupling tra density e clustering in cui, al crescere della size, la density diminuisce mentre il clustering coefficinet rimane alto. Con il jaccard method al crescere della size sia density che clustering ciefficient rimangono elevati. Con quest'ultimo metodo, le commuinity sono sia globalmente che localmente connesse. Nel caso dell'embedding, le community risultano globalmente più sparse ma ben localmente connesse indicando una sottostruttura composta da gruppi di farmaci diversi connessi da ponti deboli. 
+
+Analizzando Cloness e betweennes calcolati a partire dalla similarity network embedding-based emergono diversi ruoli funzionali dei farmaci. Il 6,9% dei nodi ha il ruolo di "global hubs"  combining high topological centrality with a bridging role between drugs with different gene targets. Particularly noteworthy is the near-absence of cluster cores (only 9 nodes, 0.5%), suggesting that well-positioned drugs almost always also perform a structural bridging function.
+2.3% exhibit low closeness but high betweenness, making them indispensable for network connectivity and representing potentially interesting candidates for further pharmacological investigation. The majority (73%) ha un ruolo intermedio tra quelli appena citati. 
 
 
 

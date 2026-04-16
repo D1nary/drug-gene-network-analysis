@@ -116,9 +116,12 @@ def compute_bipartite_graph_stats(
 
     drug_degrees = np.array([graph.degree(n) for n in drug_nodes], dtype=float)
 
+    # Project the bipartite graph onto drug nodes: two drugs share an edge if
+    # they have at least one common target; edge weight = number of shared targets.
     drug_proj = nx_bipartite.weighted_projected_graph(graph, drug_nodes)
     edge_weights = [d["weight"] for _, _, d in drug_proj.edges(data=True)]
 
+    # Mean drug degree used to estimate random-walk reachability in k-hop neighborhoods.
     k = float(np.mean(drug_degrees)) if len(drug_degrees) > 0 else 0.0
 
     stats: dict = {
@@ -247,6 +250,10 @@ def build_node2vec_embeddings(
         weights = []
         for candidate in curr_neighbors:
             edge_weight = float(graph[curr_node][candidate].get("weight", 1.0))
+            # Node2Vec biased walk:
+            # - 1/p  if returning to the previous node  (BFS-like: p < 1)
+            # - 1.0  if at distance 1 from the previous node (neither backtrack nor explore)
+            # - 1/q  if moving away from the previous node (DFS-like: q < 1)
             if candidate == prev_node:
                 bias = 1.0 / p
             elif graph.has_edge(candidate, prev_node):
@@ -397,11 +404,14 @@ def build_metapath2vec_pq(
             + ", ".join(unknown_types)
         )
 
+    # Drop the repeated last element so the walk cycles within the prefix.
+    # E.g. ['drug','gene','drug'] becomes ['drug','gene'], cycle_length=2.
     metapath_cycle = normalized_metapath[:-1]
     if not metapath_cycle:
         metapath_cycle = normalized_metapath
     cycle_length = len(metapath_cycle)
 
+    # Map each node type to its position(s) inside the cycle for walk initialization.
     type_to_offsets: dict[str, list[int]] = {}
     for idx, node_type in enumerate(metapath_cycle):
         type_to_offsets.setdefault(node_type, []).append(idx)
@@ -413,6 +423,7 @@ def build_metapath2vec_pq(
             + ", ".join(missing_types)
         )
 
+    # Pre-bucket each node's neighbours by type to avoid repeated lookups during walks.
     neighbors_by_type: dict[str, dict[str, list[str]]] = {}
     for node in nodes:
         typed_neighbors: dict[str, list[str]] = {}
@@ -431,6 +442,7 @@ def build_metapath2vec_pq(
         prev_node: str | None = None
 
         for _ in range(walk_length - 1):
+            # Advance to the next position in the cyclic metapath.
             next_offset = (current_offset + 1) % cycle_length
             expected_type = metapath_cycle[next_offset]
             candidate_neighbors = neighbors_by_type[current_node].get(expected_type, [])
@@ -438,8 +450,10 @@ def build_metapath2vec_pq(
                 break
 
             if prev_node is None:
+                # First step: uniform choice among type-valid neighbors.
                 next_node = str(rng.choice(candidate_neighbors))
             else:
+                # p/q-biased transition (same semantics as Node2Vec but type-constrained).
                 prev_typed_neighbors = set(
                     neighbors_by_type[prev_node].get(expected_type, [])
                 )
@@ -464,6 +478,7 @@ def build_metapath2vec_pq(
 
     walks: list[list[str]] = []
     for _ in range(num_walks):
+        # Shuffle start order each round to reduce position bias across walks.
         shuffled_nodes = nodes.copy()
         rng.shuffle(shuffled_nodes)
         for node in shuffled_nodes:
@@ -471,6 +486,7 @@ def build_metapath2vec_pq(
             start_offset = type_to_offsets[node_type][0]
             walks.append(_generate_walk(node, start_offset))
 
+    # Train Skip-gram (sg=1) with global negative sampling via gensim Word2Vec.
     model = Word2Vec(
         sentences=walks,
         vector_size=embedding_dim,
@@ -490,6 +506,7 @@ def build_metapath2vec_pq(
         if node in model.wv:
             embedding_matrix[node_to_idx[node]] = model.wv[node]
 
+    # L2-normalize so cosine similarity equals dot product downstream.
     norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
     nonzero_norms = norms.squeeze() > 0
     embedding_matrix[nonzero_norms] = (
@@ -850,6 +867,8 @@ def build_metapath2vec_pp(
         if not valid_t:
             continue
         freqs = np.array([node_freq.get(n, 1) for n in valid_t], dtype=float)
+        # Raise frequencies to the 0.75 power (sublinear smoothing from word2vec paper)
+        # to reduce the dominance of very frequent nodes in negative sampling.
         probs = freqs ** 0.75
         probs /= probs.sum()
         type_neg_pool[t] = np.array([node_to_idx[n] for n in valid_t], dtype=np.intp)
@@ -1274,6 +1293,8 @@ def build_drug_similarity_network(
     original_drug_count = tmp["Drug"].nunique()
 
     # Map each drug to its unique targets and filter out mono-target drugs.
+    # Drugs with only one target always have Jaccard similarity 0 or 1 with
+    # other single-target drugs, providing little structural information.
     drug_targets = tmp.groupby("Drug")["Gene"].apply(lambda genes: set(genes)).to_dict()
     drug_targets = {
         drug: targets for drug, targets in drug_targets.items() if len(targets) > 1
@@ -1400,6 +1421,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
     nonzero = norms.squeeze() > 0
     emb_matrix[nonzero] = emb_matrix[nonzero] / norms[nonzero]
 
+    # Keep only drug nodes; gene embeddings are not used in the similarity network.
     drug_indices = np.flatnonzero(node_type_series.to_numpy() == "drug")
     if drug_indices.size == 0:
         raise ValueError("Embedding file does not contain drug nodes.")
@@ -1410,6 +1432,7 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
     graph = nx.Graph()
     for drug_id in drug_node_ids:
         attrs = node_attrs.loc[drug_id].to_dict() if drug_id in node_attrs.index else {}
+        # Strip NaN values and convert numpy scalars to plain Python types for JSON safety.
         cleaned_attrs = {
             str(key): (value.item() if isinstance(value, np.generic) else value)
             for key, value in attrs.items()
@@ -1418,11 +1441,15 @@ def build_cosine_similarity_network_from_node2vec_embeddings(
         graph.add_node(drug_id, **cleaned_attrs)
 
     n_drugs = len(drug_node_ids)
+    # Block-wise matrix multiplication: compute cosine similarities in blocks to cap
+    # peak memory usage (full n×n matrix would be O(n²) for large drug sets).
     for start in range(0, n_drugs, block_size):
         end = min(start + block_size, n_drugs)
+        # Dot product of L2-normalised vectors equals cosine similarity.
         similarities = drug_matrix[start:end] @ drug_matrix.T
         for local_idx, source_idx in enumerate(range(start, end)):
             row = similarities[local_idx]
+            # Mask the self-pair and all already-processed pairs to avoid duplicates.
             row[: source_idx + 1] = -np.inf
             target_indices = np.flatnonzero(row >= cosine_threshold)
             for target_idx in target_indices:
@@ -1721,7 +1748,7 @@ def build_target_inclusion_dag(
     for node, targets in targets_by_node.items():
         dag.add_node(node, targets=sorted(targets))
 
-    # Sort by target-set size so candidate supersets can be scanned efficiently.
+    # Sort ascending by target-set size so potential supersets always appear later.
     items = sorted(
         ((node, targets) for node, targets in targets_by_node.items()),
         key=lambda item: len(item[1]),
@@ -1732,11 +1759,13 @@ def build_target_inclusion_dag(
         for node_large, targets_large in items[i + 1 :]:
             size_large = len(targets_large)
             size_diff = size_large - size_small
-            # Early stop: list is size-ordered, so larger differences only increase.
+            # Since the list is sorted, exceeding min_set_difference means all
+            # remaining pairs will also exceed it — safe to stop early.
             if size_diff > min_set_difference:
                 break
             if size_diff <= 0:
                 continue
+            # Add a directed edge from the superset node to the subset node.
             if targets_small.issubset(targets_large):
                 dag.add_edge(node_large, node_small)
 
