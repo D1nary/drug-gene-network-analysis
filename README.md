@@ -72,10 +72,6 @@ A separate **CBP analysis** (Centrality-Based Profiling) computes betweenness ce
   - `degree.csv`
 - **`results/co_occurence/`** — Co-occurrence parameter summaries.
 - **`results/dag/communities/<id>/`** — Per-community DAG inputs/outputs (community nodes, DAG metrics, DAG image).
-- **`graphs/`** — Analysis and comparison graphs generated outside the main pipeline:
-  - `graphs/bcp/` — CBP histograms and scatter plots
-  - `graphs/embedding/` — Embedding-quality scatter and bar plots
-  - `graphs/jaccard/` — Jaccard similarity distribution plots
 
 ---
 
